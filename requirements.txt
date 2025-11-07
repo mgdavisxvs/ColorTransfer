@@ -1,0 +1,28 @@
+# Core dependencies for Color Transfer Framework v2.0
+
+# Required
+numpy>=1.20.0
+opencv-python>=4.5.0
+psutil>=5.8.0  # For performance profiling
+
+# Optional (for GPU acceleration)
+# torch>=1.9.0
+# torchvision>=0.10.0
+
+# Optional (for visualization)
+# matplotlib>=3.3.0
+# seaborn>=0.11.0
+# plotly>=5.0.0
+
+# Optional (for ML features)
+# scikit-learn>=0.24.0
+# scipy>=1.7.0
+
+# Optional (for API server)
+# fastapi>=0.68.0
+# uvicorn>=0.15.0
+
+# Optional (for documentation)
+# sphinx>=4.0.0
+# jupyter>=1.0.0
+# nbconvert>=6.0.0
