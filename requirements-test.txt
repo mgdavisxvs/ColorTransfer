@@ -1,16 +1,197 @@
-# Testing dependencies for Color Transfer Framework
+# Testing dependencies for Color Transfer Framework v2.0
+# Knuth/Graham Testing Suite - Mathematical Precision & Practical Testing
+#
+# Install all test dependencies:
+#   pip install -r requirements-test.txt
+#
+# Or install specific test types:
+#   pip install pytest pytest-cov  # Unit tests only
+#   pip install playwright         # Integration tests only
+#   pip install locust            # Load tests only
 
-# Core dependencies
-numpy>=1.20.0
-opencv-python>=4.5.0
+# ============================================================================
+# Core Testing Framework
+# ============================================================================
 
-# Testing
-pytest>=7.0.0
-pytest-cov>=3.0.0
-pytest-xdist>=2.5.0  # Parallel test execution
+pytest>=7.4.0                # Primary test framework
+pytest-cov>=4.1.0           # Code coverage measurement
+pytest-xdist>=3.3.0         # Parallel test execution
+pytest-asyncio>=0.21.0      # Async test support
+pytest-timeout>=2.1.0       # Test timeout management
 
-# Optional (for performance tests)
-psutil>=5.8.0
+# ============================================================================
+# Integration Testing (WebUI End-to-End)
+# ============================================================================
 
-# Optional (for GPU tests)
-# torch>=1.9.0  # Uncomment if testing GPU functionality
+# Playwright (Primary - Modern Browser Automation)
+playwright>=1.40.0          # Modern browser automation framework
+pytest-playwright>=0.4.3    # Playwright pytest plugin
+
+# Selenium (Fallback - Traditional Browser Automation)
+selenium>=4.15.0            # WebDriver-based browser automation
+webdriver-manager>=4.0.0    # Automatic WebDriver management
+
+# ============================================================================
+# Load Testing (Performance Under Load)
+# ============================================================================
+
+# Locust (Python-based Load Testing)
+locust>=2.18.0              # Python load testing framework
+
+# k6 is JavaScript-based and installed separately:
+#   macOS: brew install k6
+#   Linux: snap install k6 / apt install k6
+#   Windows: choco install k6
+
+# ============================================================================
+# Visual Regression Testing (Pixel-Perfect UI Verification)
+# ============================================================================
+
+# Image comparison libraries
+scikit-image>=0.22.0        # SSIM, image metrics
+opencv-python>=4.8.0        # Already in main requirements, but listed for clarity
+Pillow>=10.1.0              # Image manipulation
+imagehash>=4.3.1            # Perceptual hashing
+
+# ============================================================================
+# Contract Testing (API Schema Validation)
+# ============================================================================
+
+jsonschema>=4.20.0          # JSON Schema validation
+requests>=2.31.0            # HTTP client for API testing
+
+# ============================================================================
+# Mutation Testing (Test Quality Verification)
+# ============================================================================
+
+mutmut>=2.4.4               # Mutation testing framework
+
+# ============================================================================
+# Code Quality & Linting (Optional but Recommended)
+# ============================================================================
+
+# Static Analysis
+mypy>=1.7.0                 # Static type checking
+pylint>=3.0.0               # Code linting
+flake8>=6.1.0               # Style guide enforcement
+black>=23.11.0              # Code formatting
+isort>=5.12.0               # Import sorting
+
+# Security Scanning
+bandit>=1.7.5               # Security issue detection
+safety>=2.3.5               # Dependency vulnerability scanning
+
+# ============================================================================
+# Test Utilities & Helpers
+# ============================================================================
+
+faker>=20.1.0               # Test data generation
+freezegun>=1.4.0            # Time mocking
+responses>=0.24.0           # HTTP response mocking
+pytest-mock>=3.12.0         # Enhanced mocking capabilities
+
+# ============================================================================
+# Performance Profiling (Optional)
+# ============================================================================
+
+# Already in main requirements:
+# psutil>=5.8.0             # System resource monitoring
+
+memory-profiler>=0.61.0     # Memory usage profiling
+py-spy>=0.3.14              # Sampling profiler
+
+# ============================================================================
+# Documentation Testing (Optional)
+# ============================================================================
+
+sphinx>=7.2.0               # Documentation generation
+sphinx-rtd-theme>=2.0.0     # Read the Docs theme
+docutils>=0.20.0            # Documentation utilities
+
+# ============================================================================
+# CI/CD Integration (Optional)
+# ============================================================================
+
+coverage[toml]>=7.3.0       # Coverage with pyproject.toml support
+pytest-html>=4.1.0          # HTML test reports
+pytest-json-report>=1.5.0   # JSON test reports
+allure-pytest>=2.13.0       # Allure test reporting
+
+# ============================================================================
+# Mathematical Analysis & Data (For Test Assertions)
+# ============================================================================
+
+scipy>=1.11.0               # Scientific computing (statistical tests)
+pandas>=2.1.0               # Data analysis (test result analysis)
+
+# ============================================================================
+# Installation Notes
+# ============================================================================
+
+# 1. Install all test dependencies:
+#    pip install -r requirements.txt -r requirements-test.txt
+#
+# 2. Install Playwright browsers:
+#    playwright install chromium
+#    playwright install firefox  # Optional
+#    playwright install webkit    # Optional
+#
+# 3. Install k6 (if using JavaScript load tests):
+#    macOS:   brew install k6
+#    Linux:   snap install k6
+#    Windows: choco install k6
+#
+# 4. Verify installation:
+#    pytest --version
+#    playwright --version
+#    locust --version
+#    k6 version  # If installed
+#    mutmut --version
+
+# ============================================================================
+# Running Tests
+# ============================================================================
+
+# Quick test (unit tests only):
+#   pytest tests/ -v --tb=short
+#
+# Full test suite:
+#   pytest tests/ -v
+#   pytest tests/integration/ -v
+#   pytest tests/contract/ -v
+#   pytest tests/visual/ -v
+#
+# With coverage:
+#   pytest tests/ --cov=color_transfer_framework --cov-report=html
+#
+# Load testing:
+#   locust -f tests/load/locustfile.py --headless -u 10 -r 5 -t 1m --host http://localhost:8000
+#
+# Mutation testing:
+#   mutmut run
+#   mutmut results
+#
+# See tests/TESTING_GUIDE.md for comprehensive testing documentation.
+
+# ============================================================================
+# Knuth's Testing Philosophy
+# ============================================================================
+
+# "Beware of bugs in the above code; I have only proved it correct,
+#  not tried it." - Donald Knuth
+#
+# This test suite provides:
+# - Mathematical rigor (formal metrics, statistical analysis)
+# - Comprehensive coverage (unit, integration, load, visual, contract, mutation)
+# - Performance benchmarks (latency percentiles, throughput, resource usage)
+# - Quality assurance (mutation testing, code coverage, static analysis)
+#
+# Graham's Practical Approach:
+# - Fast feedback (< 3 minutes for quick tests)
+# - Clear assertions (no ambiguity)
+# - Reproducible results (deterministic tests)
+# - Real-world scenarios (user journeys)
+
+# ============================================================================
+# Framework Testing Status: COMPREHENSIVE ✅
+# ============================================================================
