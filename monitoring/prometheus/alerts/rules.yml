@@ -1,0 +1,352 @@
+# ============================================================================
+# Prometheus Alert Rules for Color Transfer Framework
+# Defines alerts for system health, performance, and errors
+# ============================================================================
+#
+# Alert Severity Levels:
+#   - critical: Immediate action required (page on-call)
+#   - warning: Investigation needed (notify team)
+#   - info: Informational (log for review)
+#
+# Integration:
+#   - AlertManager: Routes alerts to PagerDuty, Slack, etc.
+#   - Grafana: Visualizes alerts in dashboards
+#
+# ============================================================================
+
+groups:
+  # ==========================================================================
+  # Service Availability Alerts
+  # ==========================================================================
+  - name: service_availability
+    interval: 30s
+    rules:
+      - alert: ServiceDown
+        expr: up{job=~"color-transfer.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: infrastructure
+        annotations:
+          summary: "Service {{ $labels.job }} on {{ $labels.instance }} is down"
+          description: "{{ $labels.job }} has been down for more than 1 minute. Immediate action required."
+          dashboard: "http://grafana:3000/d/color-transfer-overview"
+          runbook: "Check service logs: docker-compose logs {{ $labels.job }}"
+
+      - alert: ServiceRestarting
+        expr: changes(process_start_time_seconds{job=~"color-transfer.*"}[5m]) > 2
+        for: 5m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "Service {{ $labels.job }} is restarting frequently"
+          description: "{{ $labels.job }} has restarted {{ $value }} times in the last 5 minutes."
+          runbook: "Check for OOM kills or crashes: docker-compose logs {{ $labels.job }}"
+
+  # ==========================================================================
+  # Performance Alerts
+  # ==========================================================================
+  - name: performance
+    interval: 30s
+    rules:
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="color-transfer-api"}[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "High API response time (p95 > 2s)"
+          description: "API p95 response time is {{ $value | humanizeDuration }}. Target: < 1s"
+          impact: "Users experiencing slow responses"
+          dashboard: "http://grafana:3000/d/color-transfer-overview?viewPanel=4"
+          runbook: "Check CPU/memory usage, Redis cache hit rate, and Celery queue length"
+
+      - alert: VeryHighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="color-transfer-api"}[5m])) > 5
+        for: 2m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "Very high API response time (p95 > 5s)"
+          description: "API p95 response time is {{ $value | humanizeDuration }}. Critical performance degradation."
+          impact: "Service likely unusable for end users"
+          dashboard: "http://grafana:3000/d/color-transfer-overview?viewPanel=4"
+          action: "Consider scaling up workers or investigating bottlenecks immediately"
+
+      - alert: SlowColorTransferOperations
+        expr: histogram_quantile(0.95, rate(color_transfer_operation_duration_seconds_bucket[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: application
+        annotations:
+          summary: "Slow color transfer operations (p95 > 10s)"
+          description: "Color transfer p95 duration is {{ $value | humanizeDuration }}."
+          algorithm: "{{ $labels.algorithm }}"
+          runbook: "Check if specific algorithm is slow, consider optimization or GPU acceleration"
+
+  # ==========================================================================
+  # Error Rate Alerts
+  # ==========================================================================
+  - name: errors
+    interval: 30s
+    rules:
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{job="color-transfer-api",status=~"5.."}[5m]) / rate(http_requests_total{job="color-transfer-api"}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "High API error rate (> 5%)"
+          description: "API error rate is {{ $value | humanizePercentage }}. Target: < 0.1%"
+          impact: "{{ $value | humanizePercentage }} of requests are failing"
+          dashboard: "http://grafana:3000/d/color-transfer-overview?viewPanel=5"
+          runbook: "Check error logs for patterns: docker-compose logs api | grep ERROR"
+
+      - alert: ElevatedErrorRate
+        expr: rate(http_requests_total{job="color-transfer-api",status=~"5.."}[5m]) / rate(http_requests_total{job="color-transfer-api"}[5m]) > 0.01
+        for: 10m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "Elevated API error rate (> 1%)"
+          description: "API error rate is {{ $value | humanizePercentage }}. Target: < 0.1%"
+          dashboard: "http://grafana:3000/d/color-transfer-overview?viewPanel=5"
+
+      - alert: ColorTransferErrors
+        expr: rate(color_transfer_errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: application
+        annotations:
+          summary: "Color transfer errors detected"
+          description: "{{ $value }} color transfer errors per second. Error type: {{ $labels.error_type }}"
+          runbook: "Investigate error type: {{ $labels.error_type }}"
+
+  # ==========================================================================
+  # Resource Utilization Alerts
+  # ==========================================================================
+  - name: resources
+    interval: 30s
+    rules:
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total{job=~"color-transfer.*"}[5m]) * 100 > 90
+        for: 10m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "High CPU usage on {{ $labels.job }}"
+          description: "CPU usage is {{ $value }}%. Consider scaling or optimizing."
+          service: "{{ $labels.job }}"
+          dashboard: "http://grafana:3000/d/color-transfer-overview?viewPanel=1"
+
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes{job=~"color-transfer.*"} > 1900000000
+        for: 10m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "High memory usage on {{ $labels.job }}"
+          description: "Memory usage is {{ $value | humanizeBytes }}. Limit: 2GB"
+          service: "{{ $labels.job }}"
+          action: "May trigger OOM kill soon. Consider increasing memory limits or reducing workers."
+
+      - alert: MemoryLeakSuspected
+        expr: delta(process_resident_memory_bytes{job=~"color-transfer.*"}[1h]) > 500000000
+        for: 2h
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "Possible memory leak in {{ $labels.job }}"
+          description: "Memory increased by {{ $value | humanizeBytes }} in the last hour."
+          service: "{{ $labels.job }}"
+          runbook: "Monitor memory trends. If continues, restart service and investigate code."
+
+  # ==========================================================================
+  # Cache & Queue Alerts
+  # ==========================================================================
+  - name: infrastructure
+    interval: 30s
+    rules:
+      - alert: LowCacheHitRate
+        expr: redis_cache_hits_total / (redis_cache_hits_total + redis_cache_misses_total) < 0.5
+        for: 15m
+        labels:
+          severity: warning
+          component: cache
+        annotations:
+          summary: "Low Redis cache hit rate (< 50%)"
+          description: "Cache hit rate is {{ $value | humanizePercentage }}. Target: > 80%"
+          impact: "Increased database/computation load"
+          action: "Review cache TTL settings or cache key strategies"
+
+      - alert: HighQueueLength
+        expr: celery_queue_length > 1000
+        for: 10m
+        labels:
+          severity: warning
+          component: queue
+        annotations:
+          summary: "High Celery queue length"
+          description: "Queue {{ $labels.queue }} has {{ $value }} pending tasks. Target: < 100"
+          impact: "Task processing delays"
+          action: "Scale up Celery workers: docker-compose up -d --scale celery_worker=8"
+
+      - alert: VeryHighQueueLength
+        expr: celery_queue_length > 5000
+        for: 5m
+        labels:
+          severity: critical
+          component: queue
+        annotations:
+          summary: "Very high Celery queue length"
+          description: "Queue {{ $labels.queue }} has {{ $value }} pending tasks. Critical backlog."
+          impact: "Severe task processing delays, may indicate worker failure"
+          action: "Immediate action: Check worker health and scale: docker-compose logs celery_worker"
+
+      - alert: RedisDown
+        expr: redis_connections_active < 1
+        for: 2m
+        labels:
+          severity: critical
+          component: cache
+        annotations:
+          summary: "Redis appears to be down"
+          description: "No active Redis connections detected."
+          impact: "Caching disabled, session storage unavailable"
+          action: "Check Redis status: docker-compose logs redis; docker-compose restart redis"
+
+  # ==========================================================================
+  # Traffic Alerts
+  # ==========================================================================
+  - name: traffic
+    interval: 30s
+    rules:
+      - alert: UnusualTrafficSpike
+        expr: rate(http_requests_total{job="color-transfer-api"}[5m]) > (avg_over_time(rate(http_requests_total{job="color-transfer-api"}[5m])[1h:5m]) * 3)
+        for: 5m
+        labels:
+          severity: warning
+          component: api
+        annotations:
+          summary: "Unusual traffic spike detected"
+          description: "Request rate is {{ $value }} req/s, 3x normal average."
+          impact: "Possible DDoS, legitimate spike, or bot activity"
+          action: "Monitor system resources and consider rate limiting"
+
+      - alert: NoTraffic
+        expr: rate(http_requests_total{job="color-transfer-api"}[10m]) == 0
+        for: 15m
+        labels:
+          severity: info
+          component: api
+        annotations:
+          summary: "No API traffic detected"
+          description: "No requests received in the last 15 minutes."
+          note: "This may be normal for development environments"
+
+  # ==========================================================================
+  # Business Logic Alerts
+  # ==========================================================================
+  - name: business_logic
+    interval: 30s
+    rules:
+      - alert: AlgorithmFailureRate
+        expr: rate(color_transfer_errors_total{error_type="algorithm_failure"}[10m]) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          component: application
+        annotations:
+          summary: "High algorithm failure rate"
+          description: "Algorithm {{ $labels.algorithm }} failing at {{ $value }} errors/sec"
+          algorithm: "{{ $labels.algorithm }}"
+          action: "Investigate algorithm-specific issues or input validation"
+
+      - alert: UnusualAlgorithmDistribution
+        expr: |
+          (
+            rate(color_transfer_operations_total[10m])
+            /
+            sum(rate(color_transfer_operations_total[10m])) by (job)
+          ) > 0.8
+        for: 30m
+        labels:
+          severity: info
+          component: application
+        annotations:
+          summary: "Single algorithm dominates usage"
+          description: "Algorithm {{ $labels.algorithm }} accounts for {{ $value | humanizePercentage }} of traffic"
+          note: "May indicate limited algorithm diversity or specific use case"
+
+# ============================================================================
+# Alert Routing (AlertManager Configuration)
+# ============================================================================
+#
+# Example alertmanager.yml configuration:
+#
+# route:
+#   group_by: ['alertname', 'component']
+#   group_wait: 10s
+#   group_interval: 10s
+#   repeat_interval: 12h
+#   receiver: 'default'
+#
+#   routes:
+#     - match:
+#         severity: critical
+#       receiver: 'pagerduty'
+#       continue: true
+#
+#     - match:
+#         severity: warning
+#       receiver: 'slack'
+#
+#     - match:
+#         severity: info
+#       receiver: 'email'
+#
+# receivers:
+#   - name: 'default'
+#     slack_configs:
+#       - api_url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
+#         channel: '#alerts'
+#
+#   - name: 'pagerduty'
+#     pagerduty_configs:
+#       - service_key: 'YOUR_PAGERDUTY_KEY'
+#
+#   - name: 'email'
+#     email_configs:
+#       - to: 'ops@example.com'
+#
+# ============================================================================
+# Knuth's Alerting Philosophy
+# ============================================================================
+#
+# "An alert should be actionable, rare, and urgent" - SRE principles
+#
+# Alert Design Principles:
+# 1. Severity matches urgency (critical = wake up, warning = investigate)
+# 2. Clear, actionable descriptions
+# 3. Include dashboard links for context
+# 4. Provide runbook commands
+# 5. Avoid alert fatigue (tune thresholds)
+#
+# Graham's Practical Alerting:
+# 1. Start conservative (fewer alerts)
+# 2. Tune based on actual incidents
+# 3. Include context (what, why, how to fix)
+# 4. Test alerts regularly
+# 5. Review and remove stale alerts
+#
+# ============================================================================

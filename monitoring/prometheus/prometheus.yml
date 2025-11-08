@@ -14,6 +14,7 @@ global:
     environment: 'production'
 
 # Alertmanager configuration (optional)
+# Uncomment to enable AlertManager integration
 # alerting:
 #   alertmanagers:
 #     - static_configs:
@@ -21,8 +22,8 @@ global:
 #           - alertmanager:9093
 
 # Load alerting rules
-# rule_files:
-#   - "alerts/*.yml"
+rule_files:
+  - "alerts/*.yml"
 
 # Scrape configurations
 scrape_configs:
