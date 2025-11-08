@@ -27,6 +27,15 @@ from datetime import datetime
 import cv2
 import numpy as np
 import base64
+import asyncio
+from typing import Dict
+try:
+    from flask_sock import Sock
+    WEBSOCKET_AVAILABLE = True
+except ImportError:
+    WEBSOCKET_AVAILABLE = False
+    print("Warning: flask-sock not installed. WebSocket progress updates will not be available.")
+    print("Install with: pip install flask-sock")
 
 from .orchestrator import TransferOrchestrator
 from ..transfer_engine import TransferConfig, TransferAlgorithm
@@ -42,6 +51,42 @@ app.config['CONFIG_FOLDER'].mkdir(parents=True, exist_ok=True)
 
 # Initialize orchestrator
 orchestrator = TransferOrchestrator()
+
+# Initialize WebSocket support if available
+if WEBSOCKET_AVAILABLE:
+    sock = Sock(app)
+
+# WebSocket Connection Manager for Flask
+class FlaskConnectionManager:
+    """Manages active WebSocket connections for progress updates."""
+
+    def __init__(self):
+        self.active_connections: Dict[str, any] = {}
+
+    def add_connection(self, client_id: str, ws):
+        """Store a WebSocket connection."""
+        self.active_connections[client_id] = ws
+
+    def remove_connection(self, client_id: str):
+        """Remove a WebSocket connection."""
+        if client_id in self.active_connections:
+            del self.active_connections[client_id]
+
+    def send_progress(self, client_id: str, status: str, percent: int):
+        """Send progress update to a specific client."""
+        if client_id in self.active_connections:
+            try:
+                ws = self.active_connections[client_id]
+                ws.send(json.dumps({
+                    "status": status,
+                    "percent": percent
+                }))
+            except Exception as e:
+                print(f"Error sending progress to {client_id}: {e}")
+                self.remove_connection(client_id)
+
+# Initialize connection manager
+flask_manager = FlaskConnectionManager()
 
 # Allowed file extensions
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'bmp', 'tiff'}
@@ -294,6 +339,41 @@ HTML_TEMPLATE = """
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+        }
+
+        .progress-container {
+            width: 100%;
+            max-width: 500px;
+            margin: 20px auto;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background-color: #f3f3f3;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .progress-status {
+            text-align: center;
+            margin-top: 10px;
+            color: #666;
+            font-size: 14px;
         }
 
         .result-section {
@@ -571,8 +651,16 @@ HTML_TEMPLATE = """
             </form>
 
             <div class="loading" id="loading">
-                <div class="spinner"></div>
-                <p>Processing your images...</p>
+                <div class="spinner" id="spinner"></div>
+                <div class="progress-container" id="progressContainer" style="display: none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill" style="width: 0%;">
+                            <span id="progressPercent">0%</span>
+                        </div>
+                    </div>
+                    <div class="progress-status" id="progressStatus">Initializing...</div>
+                </div>
+                <p id="loadingText">Processing your images...</p>
             </div>
 
             <div class="error" id="error"></div>
@@ -616,6 +704,8 @@ HTML_TEMPLATE = """
                 </div>
 
                 <div class="action-buttons">
+                    <button class="new-transfer-btn" onclick="undoTransfer()" id="undoBtn" style="display: none;">↶ Undo</button>
+                    <button class="new-transfer-btn" onclick="redoTransfer()" id="redoBtn" style="display: none;">↷ Redo</button>
                     <a href="#" class="download-btn" id="downloadBtn">📥 Download Result</a>
                     <button class="new-transfer-btn" onclick="resetForm()">🔄 New Transfer</button>
                 </div>
@@ -655,6 +745,13 @@ HTML_TEMPLATE = """
     <script>
         let targetImageData = null;
         let resultImageData = null;
+
+        // State management for Undo/Redo
+        const stateCache = {
+            originalTarget: null,
+            currentResult: null,
+            isShowingOriginal: false
+        };
 
         // Setup drag and drop
         function setupDragDrop(boxId, inputId) {
@@ -728,19 +825,81 @@ HTML_TEMPLATE = """
             document.getElementById(tabName + 'Tab').classList.add('active');
         }
 
-        // Form submission
+        // Generate unique client ID
+        function generateClientId() {
+            return 'client_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        // Update progress bar
+        function updateProgress(percent, status) {
+            const progressFill = document.getElementById('progressFill');
+            const progressPercent = document.getElementById('progressPercent');
+            const progressStatus = document.getElementById('progressStatus');
+
+            progressFill.style.width = percent + '%';
+            progressPercent.textContent = percent + '%';
+
+            // Format status text
+            const statusTexts = {
+                'initializing': 'Initializing...',
+                'loading_images': 'Loading images...',
+                'calculating_statistics': 'Calculating color statistics...',
+                'applying_transform': 'Applying color transformation...',
+                'processing_result': 'Processing result...',
+                'generating_diagnostics': 'Generating diagnostics...',
+                'saving_metadata': 'Saving metadata...',
+                'complete': 'Complete!'
+            };
+
+            progressStatus.textContent = statusTexts[status] || status;
+        }
+
+        // Form submission with WebSocket progress
         document.getElementById('transferForm').addEventListener('submit', async function(e) {
             e.preventDefault();
 
             const formData = new FormData(this);
+            const clientId = generateClientId();
 
-            // Show loading
+            // Show loading and hide spinner, show progress bar
             document.getElementById('submitBtn').disabled = true;
             document.getElementById('loading').style.display = 'block';
             document.getElementById('resultSection').style.display = 'none';
             document.getElementById('error').style.display = 'none';
+            document.getElementById('spinner').style.display = 'none';
+            document.getElementById('progressContainer').style.display = 'block';
+            document.getElementById('loadingText').textContent = 'Connecting...';
+
+            // Establish WebSocket connection
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}/ws/progress/${clientId}`;
+            const ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                document.getElementById('loadingText').textContent = 'Processing...';
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                updateProgress(data.percent, data.status);
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                // Fall back to spinner if WebSocket fails
+                document.getElementById('progressContainer').style.display = 'none';
+                document.getElementById('spinner').style.display = 'block';
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket disconnected');
+            };
 
             try {
+                // Add client_id to formData
+                formData.append('client_id', clientId);
+
                 const response = await fetch('/transfer', {
                     method: 'POST',
                     body: formData
@@ -756,6 +915,11 @@ HTML_TEMPLATE = """
                 const resultImg = 'data:image/png;base64,' + data.result_image;
                 resultImageData = resultImg;
 
+                // Cache images for Undo/Redo
+                stateCache.originalTarget = targetImageData;
+                stateCache.currentResult = resultImg;
+                stateCache.isShowingOriginal = false;
+
                 document.getElementById('resultImage').src = resultImg;
                 document.getElementById('execTime').textContent = data.metrics.execution_time_ms.toFixed(2);
                 document.getElementById('memUsed').textContent = data.metrics.memory_used_mb.toFixed(2);
@@ -765,14 +929,27 @@ HTML_TEMPLATE = """
                 // Setup comparison slider
                 setupComparisonSlider(targetImageData, resultImg);
 
+                // Show Undo button, hide Redo button
+                document.getElementById('undoBtn').style.display = 'inline-block';
+                document.getElementById('redoBtn').style.display = 'none';
+
                 document.getElementById('resultSection').style.display = 'block';
 
             } catch (error) {
                 document.getElementById('error').textContent = 'Error: ' + error.message;
                 document.getElementById('error').style.display = 'block';
             } finally {
+                // Close WebSocket
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.close();
+                }
+
+                // Reset loading UI
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('submitBtn').disabled = false;
+                document.getElementById('spinner').style.display = 'block';
+                document.getElementById('progressContainer').style.display = 'none';
+                updateProgress(0, 'initializing');
             }
         });
 
@@ -803,6 +980,35 @@ HTML_TEMPLATE = """
 
         function resetForm() {
             location.reload();
+        }
+
+        // Undo/Redo functionality
+        function undoTransfer() {
+            if (!stateCache.originalTarget) return;
+
+            stateCache.isShowingOriginal = true;
+            document.getElementById('resultImage').src = stateCache.originalTarget;
+
+            // Update button visibility
+            document.getElementById('undoBtn').style.display = 'none';
+            document.getElementById('redoBtn').style.display = 'inline-block';
+
+            // Update comparison slider to show original
+            setupComparisonSlider(stateCache.originalTarget, stateCache.originalTarget);
+        }
+
+        function redoTransfer() {
+            if (!stateCache.currentResult) return;
+
+            stateCache.isShowingOriginal = false;
+            document.getElementById('resultImage').src = stateCache.currentResult;
+
+            // Update button visibility
+            document.getElementById('undoBtn').style.display = 'inline-block';
+            document.getElementById('redoBtn').style.display = 'none';
+
+            // Restore comparison slider with result
+            setupComparisonSlider(stateCache.originalTarget, stateCache.currentResult);
         }
 
         // Configuration Save/Load
@@ -913,6 +1119,29 @@ def index():
     return render_template_string(HTML_TEMPLATE, version=__version__)
 
 
+@app.route('/ws/progress/<client_id>')
+def websocket_progress(client_id):
+    """WebSocket endpoint for real-time progress updates (Flask)."""
+    if not WEBSOCKET_AVAILABLE:
+        return jsonify({'error': 'WebSocket support not available'}), 501
+
+    ws = sock(request.environ)
+    flask_manager.add_connection(client_id, ws)
+
+    try:
+        # Keep connection alive and listen for client messages
+        while True:
+            data = ws.receive()
+            if data is None:
+                break
+    except Exception as e:
+        print(f"WebSocket error for {client_id}: {e}")
+    finally:
+        flask_manager.remove_connection(client_id)
+
+    return ''
+
+
 @app.route('/transfer', methods=['POST'])
 def transfer():
     """Process transfer request."""
@@ -941,6 +1170,7 @@ def transfer():
         blend_factor = float(request.form.get('blend', 100)) / 100.0
         use_gpu = request.form.get('use_gpu') == 'on'
         preserve_luminance = request.form.get('preserve_luminance') == 'on'
+        client_id = request.form.get('client_id')  # Get client_id for WebSocket updates
 
         # Build config
         config = TransferConfig(
@@ -949,19 +1179,38 @@ def transfer():
             preserve_luminance=preserve_luminance
         )
 
-        # Perform transfer
+        # Create progress callback if client_id provided
+        progress_callback = None
+        if client_id and WEBSOCKET_AVAILABLE:
+            def progress_callback(status: str, percent: int):
+                flask_manager.send_progress(client_id, status, percent)
+
+        # Load images
+        source_image = cv2.imread(source_path)
+        target_image = cv2.imread(target_path)
+
+        if source_image is None or target_image is None:
+            return jsonify({'error': 'Failed to load images'}), 400
+
+        # Perform transfer with progress callback
         result_filename = f"result_{uuid.uuid4()}.png"
         result_path = os.path.join(app.config['UPLOAD_FOLDER'], result_filename)
 
-        orch_result = orchestrator.transfer_from_paths(
-            source_path, target_path, result_path,
-            config=config, enable_gpu=use_gpu,
-            interface_type="WebUI"
+        orch_result = orchestrator.transfer(
+            source_image, target_image,
+            config=config,
+            enable_gpu=use_gpu,
+            generate_diagnostics=False,
+            profile_performance=True,
+            interface_type="WebUI",
+            progress_callback=progress_callback
         )
 
+        # Save result
+        cv2.imwrite(result_path, orch_result.result_image)
+
         # Read result and encode to base64
-        result_image = cv2.imread(result_path)
-        _, buffer = cv2.imencode('.png', result_image)
+        _, buffer = cv2.imencode('.png', orch_result.result_image)
         result_b64 = base64.b64encode(buffer).decode('utf-8')
 
         # Store filename in session for download

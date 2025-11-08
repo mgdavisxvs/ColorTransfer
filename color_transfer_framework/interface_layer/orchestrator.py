@@ -20,9 +20,10 @@ import io
 import hashlib
 import time
 from pathlib import Path
-from typing import Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any, Tuple, Callable
 from dataclasses import dataclass
 import uuid
+import asyncio
 
 from ..transfer_engine import TransferEngine, TransferConfig, TransferAlgorithm
 from ..optimizer_engine import OptimizerEngine, OptimizationMode, PerformanceMetrics
@@ -99,7 +100,8 @@ class TransferOrchestrator:
         generate_diagnostics: bool = False,
         output_dir: Optional[Path] = None,
         profile_performance: bool = True,
-        interface_type: str = "DIRECT"
+        interface_type: str = "DIRECT",
+        progress_callback: Optional[Callable[[str, int], None]] = None
     ) -> OrchestrationResult:
         """
         Perform complete color transfer operation with optional diagnostics.
@@ -131,17 +133,34 @@ class TransferOrchestrator:
         # Generate unique run ID
         run_id = str(uuid.uuid4())
 
+        # Helper for progress updates
+        def emit_progress(status: str, percent: int):
+            if progress_callback:
+                try:
+                    progress_callback(status, percent)
+                except Exception:
+                    pass  # Don't fail if progress callback errors
+
+        # Progress: Starting
+        emit_progress("initializing", 0)
+
         # Use default config if not provided
         if config is None:
             config = TransferConfig()
+
+        emit_progress("loading_images", 10)
 
         # Compute image hashes for tracking
         source_hash = self._compute_hash(source_image)
         target_hash = self._compute_hash(target_image)
 
+        emit_progress("calculating_statistics", 30)
+
         # Perform transfer with optional profiling
         if profile_performance:
             start_time = time.perf_counter()
+
+            emit_progress("applying_transform", 50)
             result = self.transfer_engine.transfer(
                 source_image, target_image, config, mask
             )
@@ -154,6 +173,7 @@ class TransferOrchestrator:
                 throughput_images_per_sec=1000.0 / execution_time if execution_time > 0 else 0.0
             )
         else:
+            emit_progress("applying_transform", 50)
             result = self.transfer_engine.transfer(
                 source_image, target_image, config, mask
             )
@@ -163,12 +183,15 @@ class TransferOrchestrator:
                 throughput_images_per_sec=0.0
             )
 
+        emit_progress("processing_result", 70)
+
         # Compute result hash
         result_hash = self._compute_hash(result)
 
         # Generate diagnostics if requested
         visualization_paths = None
         if generate_diagnostics and output_dir is not None:
+            emit_progress("generating_diagnostics", 80)
             output_dir = Path(output_dir)
             output_dir.mkdir(parents=True, exist_ok=True)
             visualization_paths = self.visualizer.generate_comprehensive_report(
@@ -177,6 +200,7 @@ class TransferOrchestrator:
 
         # Log to persistence layer
         if self.enable_logging:
+            emit_progress("saving_metadata", 90)
             try:
                 self.persistence_logger.log_transfer(
                     run_id=run_id,
@@ -196,6 +220,8 @@ class TransferOrchestrator:
             except Exception as e:
                 # Don't fail the operation if logging fails
                 pass
+
+        emit_progress("complete", 100)
 
         return OrchestrationResult(
             result_image=result,
@@ -269,7 +295,8 @@ class TransferOrchestrator:
         result = self.transfer(
             source, target, config, mask, enable_gpu,
             generate_diagnostics, output_dir,
-            interface_type=interface_type
+            interface_type=interface_type,
+            progress_callback=None  # CLI doesn't use progress callbacks
         )
 
         # Save result image
@@ -284,7 +311,8 @@ class TransferOrchestrator:
         config: Optional[TransferConfig] = None,
         mask_b64: Optional[str] = None,
         enable_gpu: bool = False,
-        interface_type: str = "API"
+        interface_type: str = "API",
+        progress_callback: Optional[Callable[[str, int], None]] = None
     ) -> Tuple[str, OrchestrationResult]:
         """
         Perform transfer from base64 encoded images.
@@ -319,7 +347,8 @@ class TransferOrchestrator:
         result = self.transfer(
             source, target, config, mask, enable_gpu,
             generate_diagnostics=False, profile_performance=True,
-            interface_type=interface_type
+            interface_type=interface_type,
+            progress_callback=progress_callback
         )
 
         # Encode result

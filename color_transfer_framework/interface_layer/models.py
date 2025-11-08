@@ -46,6 +46,7 @@ class TransferRequest(BaseModel):
     target_image: str = Field(..., description="Base64 encoded target image")
     mask_image: Optional[str] = Field(None, description="Base64 encoded mask image (optional)")
     config: TransferConfigModel = Field(default_factory=TransferConfigModel)
+    client_id: Optional[str] = Field(None, description="Client ID for WebSocket progress updates (optional)")
 
     @field_validator('source_image', 'target_image', 'mask_image')
     @classmethod

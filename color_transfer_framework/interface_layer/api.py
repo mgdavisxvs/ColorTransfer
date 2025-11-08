@@ -10,10 +10,12 @@ Endpoints:
 - GET /api/v1/health: Health check
 """
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
+import asyncio
+import json
 from typing import Dict, Any
 
 from .models import (
@@ -54,6 +56,42 @@ app.add_middleware(
 orchestrator = TransferOrchestrator()
 
 
+# WebSocket Connection Manager
+class ConnectionManager:
+    """Manages active WebSocket connections for progress updates."""
+
+    def __init__(self):
+        self.active_connections: Dict[str, WebSocket] = {}
+
+    async def connect(self, client_id: str, websocket: WebSocket):
+        """Accept and store a new WebSocket connection."""
+        await websocket.accept()
+        self.active_connections[client_id] = websocket
+        logger.info(f"WebSocket connected: client_id={client_id}")
+
+    def disconnect(self, client_id: str):
+        """Remove a WebSocket connection."""
+        if client_id in self.active_connections:
+            del self.active_connections[client_id]
+            logger.info(f"WebSocket disconnected: client_id={client_id}")
+
+    async def send_progress(self, client_id: str, status: str, percent: int):
+        """Send progress update to a specific client."""
+        if client_id in self.active_connections:
+            try:
+                await self.active_connections[client_id].send_json({
+                    "status": status,
+                    "percent": percent
+                })
+            except Exception as e:
+                logger.error(f"Failed to send progress to {client_id}: {e}")
+                self.disconnect(client_id)
+
+
+# Initialize connection manager
+manager = ConnectionManager()
+
+
 @app.get("/")
 async def root():
     """Root endpoint with API information."""
@@ -63,6 +101,29 @@ async def root():
         "docs": "/docs",
         "health": "/api/v1/health"
     }
+
+
+@app.websocket("/api/v1/ws/progress/{client_id}")
+async def websocket_progress(websocket: WebSocket, client_id: str):
+    """
+    WebSocket endpoint for real-time progress updates.
+
+    Clients connect to this endpoint with a unique client_id,
+    then receive progress updates during transfer operations.
+
+    Parameters:
+    ----------
+    client_id : str
+        Unique identifier for the client session
+    """
+    await manager.connect(client_id, websocket)
+    try:
+        # Keep connection alive and listen for client messages
+        while True:
+            # Receive any messages (used for keep-alive)
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(client_id)
 
 
 @app.get("/api/v1/health", response_model=HealthResponse)
@@ -136,6 +197,9 @@ async def transfer_colors(request: TransferRequest):
     This endpoint accepts base64-encoded images and returns the transformed result
     along with performance metrics.
 
+    If client_id is provided, progress updates will be sent via WebSocket to the
+    connected client at /api/v1/ws/progress/{client_id}.
+
     Parameters:
     ----------
     request : TransferRequest
@@ -154,7 +218,7 @@ async def transfer_colors(request: TransferRequest):
         500: Server error (processing failure)
     """
     try:
-        logger.info(f"Transfer request: algorithm={request.config.algorithm}")
+        logger.info(f"Transfer request: algorithm={request.config.algorithm}, client_id={request.client_id}")
 
         # Build transfer configuration
         config = TransferConfig(
@@ -165,6 +229,13 @@ async def transfer_colors(request: TransferRequest):
             epsilon=request.config.epsilon
         )
 
+        # Create progress callback if client_id provided
+        progress_callback = None
+        if request.client_id:
+            def progress_callback(status: str, percent: int):
+                # Schedule the async send_progress coroutine
+                asyncio.create_task(manager.send_progress(request.client_id, status, percent))
+
         # Perform transfer
         result_b64, orch_result = orchestrator.transfer_from_base64(
             source_b64=request.source_image,
@@ -172,7 +243,8 @@ async def transfer_colors(request: TransferRequest):
             config=config,
             mask_b64=request.mask_image,
             enable_gpu=request.config.use_gpu,
-            interface_type="API"
+            interface_type="API",
+            progress_callback=progress_callback
         )
 
         # Convert metrics

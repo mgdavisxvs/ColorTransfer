@@ -114,9 +114,44 @@ python -m color_transfer_framework.interface_layer.cli info
 
 ---
 
+## Terminal User Interface (TUI)
+
+Modern terminal-based interface built with Textual framework. ⭐ NEW in Phase 6
+
+### Starting the TUI
+
+```bash
+python -m color_transfer_framework.interface_layer.tui
+```
+
+### Features
+
+- **Interactive File Picker**: Navigate file system with tree view to select source/target images
+- **Configuration Form**: Select algorithm and adjust blend factor
+- **Real-time Progress**: Live progress bar with status updates
+- **Result Metrics**: View execution time, memory usage, and throughput
+- **Rich Logging**: Color-coded log display for operation history
+- **Keyboard Shortcuts**:
+  - `r`: Run transfer
+  - `q`: Quit application
+
+### Usage
+
+1. Navigate the file tree panes to select source and target images
+2. Configure algorithm and blend factor in the configuration pane
+3. Click "Run Transfer" button or press `r`
+4. Monitor progress in real-time in the status pane
+5. View results and metrics when complete
+
+---
+
 ## REST API
 
 High-performance RESTful API built with FastAPI.
+
+### WebSocket Support ⭐ NEW
+
+The API now includes WebSocket support for real-time progress updates during transfer operations.
 
 ### Starting the Server
 
@@ -136,6 +171,41 @@ Once running, visit:
 - **ReDoc:** http://localhost:8000/redoc
 
 ### Endpoints
+
+#### WS /api/v1/ws/progress/{client_id} ⭐ NEW
+
+WebSocket endpoint for real-time progress updates.
+
+**Parameters:**
+- `client_id`: Unique identifier for the client session
+
+**Messages:**
+```json
+{
+  "status": "applying_transform",
+  "percent": 50
+}
+```
+
+**Status values:**
+- `initializing`: Starting transfer operation
+- `loading_images`: Loading source and target images
+- `calculating_statistics`: Computing color statistics
+- `applying_transform`: Performing color transformation
+- `processing_result`: Post-processing result
+- `generating_diagnostics`: Creating diagnostic visualizations (if enabled)
+- `saving_metadata`: Logging to persistence layer
+- `complete`: Operation finished
+
+**Example:**
+```javascript
+const ws = new WebSocket('ws://localhost:8000/api/v1/ws/progress/my_client_123');
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  console.log(`Progress: ${data.percent}% - ${data.status}`);
+};
+```
 
 #### GET /api/v1/health
 
@@ -183,6 +253,7 @@ Perform color transfer operation.
   "source_image": "base64_encoded_image_data",
   "target_image": "base64_encoded_image_data",
   "mask_image": "base64_encoded_mask_data",  // Optional
+  "client_id": "unique_client_identifier",  // Optional - for WebSocket progress updates ⭐ NEW
   "config": {
     "algorithm": "reinhard_lab",
     "blend_factor": 1.0,
@@ -287,7 +358,7 @@ User-friendly web interface built with Flask.
 ### Starting the Web Server
 
 ```bash
-python -m color_transfer_framework.interface_layer.web
+python -m color_transfer_framework.interface_layer.web_enhanced
 ```
 
 Then visit: http://localhost:5000
@@ -301,6 +372,9 @@ Then visit: http://localhost:5000
 - **Instant Results**: View transformed image immediately
 - **Download**: Save result with one click
 - **Performance Metrics**: See execution time, memory usage, and throughput
+- **Real-time Progress** ⭐ NEW: WebSocket-based live progress updates with granular status
+- **Undo/Redo** ⭐ NEW: Instantly toggle between original and transformed images
+- **Configuration Management**: Save and load transfer configurations
 
 ### Usage
 

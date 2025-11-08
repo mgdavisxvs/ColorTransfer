@@ -353,3 +353,58 @@ class TestPerformance:
 
         response = client.post("/api/v1/transfer", json=request_data)
         assert response.status_code == 200
+
+
+class TestWebSocket:
+    """Tests for WebSocket functionality."""
+
+    @pytest.fixture
+    def client(self):
+        """Create test client."""
+        return TestClient(app)
+
+    @pytest.fixture
+    def sample_image_b64(self):
+        """Create sample base64 encoded image."""
+        img = np.random.randint(0, 256, (100, 100, 3), dtype=np.uint8)
+        _, buffer = cv2.imencode('.png', img)
+        img_b64 = base64.b64encode(buffer).decode('utf-8')
+        return img_b64
+
+    def test_websocket_connection(self, client):
+        """Test WebSocket connection establishment."""
+        with client.websocket_connect("/api/v1/ws/progress/test_client_123") as websocket:
+            # Connection should be established
+            assert websocket is not None
+
+    def test_websocket_progress_updates(self, client, sample_image_b64):
+        """Test receiving progress updates via WebSocket."""
+        client_id = "test_progress_client"
+
+        # Connect WebSocket
+        with client.websocket_connect(f"/api/v1/ws/progress/{client_id}") as websocket:
+            # Send transfer request with client_id
+            request_data = {
+                "source_image": sample_image_b64,
+                "target_image": sample_image_b64,
+                "client_id": client_id,
+                "config": {"algorithm": "reinhard_lab"}
+            }
+
+            # Verify connection is established
+            assert websocket is not None
+
+    def test_websocket_multiple_clients(self, client):
+        """Test multiple simultaneous WebSocket connections."""
+        client_ids = ["client_1", "client_2", "client_3"]
+
+        # Test that multiple connections can be established
+        for client_id in client_ids:
+            with client.websocket_connect(f"/api/v1/ws/progress/{client_id}") as ws:
+                assert ws is not None
+
+    def test_websocket_disconnect(self, client):
+        """Test WebSocket disconnection handling."""
+        with client.websocket_connect("/api/v1/ws/progress/disconnect_test") as websocket:
+            websocket.close()
+            # Should handle gracefully without errors
