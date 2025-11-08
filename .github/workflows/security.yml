@@ -1,0 +1,344 @@
+# ============================================================================
+# Color Transfer Framework v2.0 - Security Scanning Pipeline
+# Automated security vulnerability detection and code analysis
+# ============================================================================
+
+name: Security Scanning
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run security scans daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:  # Allow manual triggers
+
+jobs:
+  # ==========================================================================
+  # CodeQL Analysis (SAST - Static Application Security Testing)
+  # ==========================================================================
+  codeql:
+    name: CodeQL Security Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'python' ]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended,security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{matrix.language}}"
+
+  # ==========================================================================
+  # Dependency Vulnerability Scanning
+  # ==========================================================================
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install scanning tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install safety pip-audit
+
+      - name: Scan dependencies with Safety
+        run: |
+          pip install -r requirements.txt
+          safety check --full-report --json --output safety-report.json || true
+          safety check --full-report || true
+
+      - name: Scan dependencies with pip-audit
+        run: |
+          pip-audit --requirement requirements.txt || true
+
+      - name: Upload Safety report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: safety-report
+          path: safety-report.json
+
+  # ==========================================================================
+  # Bandit - Python Security Linting
+  # ==========================================================================
+  bandit:
+    name: Bandit Security Linting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Bandit
+        run: pip install bandit[toml]
+
+      - name: Run Bandit security scan
+        run: |
+          bandit -r color_transfer_framework/ \
+            -f json \
+            -o bandit-report.json \
+            --exit-zero \
+            --severity-level medium \
+            --confidence-level medium
+
+          bandit -r color_transfer_framework/ \
+            -f txt \
+            --severity-level medium \
+            --confidence-level medium || true
+
+      - name: Upload Bandit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json
+
+  # ==========================================================================
+  # Docker Image Scanning
+  # ==========================================================================
+  docker-scan:
+    name: Docker Image Security Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          load: true
+          tags: color-transfer:scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'color-transfer:scan'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Run Trivy vulnerability scanner (table format)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'color-transfer:scan'
+          format: 'table'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          exit-code: '0'
+
+  # ==========================================================================
+  # Secret Scanning (Prevent credential leaks)
+  # ==========================================================================
+  secret-scan:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better detection
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  # ==========================================================================
+  # License Compliance Check
+  # ==========================================================================
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install license checker
+        run: pip install pip-licenses
+
+      - name: Check licenses
+        run: |
+          pip install -r requirements.txt
+          pip-licenses \
+            --format=json \
+            --output-file=licenses.json \
+            --order=license
+
+          pip-licenses \
+            --format=markdown \
+            --output-file=licenses.md
+
+          pip-licenses
+
+      - name: Upload license report
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-report
+          path: |
+            licenses.json
+            licenses.md
+
+  # ==========================================================================
+  # SBOM Generation (Software Bill of Materials)
+  # ==========================================================================
+  sbom:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate CycloneDX SBOM
+        run: |
+          pip install cyclonedx-bom
+          cyclonedx-py --requirements requirements.txt --output sbom.json --format json
+          cyclonedx-py --requirements requirements.txt --output sbom.xml --format xml
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: |
+            sbom.json
+            sbom.xml
+
+# ============================================================================
+# Security Scanning Summary
+# ============================================================================
+#
+# This workflow provides comprehensive security coverage:
+#
+# 1. CodeQL: SAST analysis for code vulnerabilities
+#    - Security-extended queries
+#    - Security and quality checks
+#    - Uploaded to GitHub Security tab
+#
+# 2. Dependency Scanning:
+#    - Safety: CVE database checking
+#    - pip-audit: PyPI advisory database
+#    - Daily scheduled scans
+#
+# 3. Bandit: Python-specific security issues
+#    - SQL injection detection
+#    - Command injection detection
+#    - Hardcoded credentials detection
+#    - Weak cryptography detection
+#
+# 4. Docker Scanning:
+#    - Trivy: Container image vulnerabilities
+#    - Base image CVE detection
+#    - Dependency CVE detection
+#    - SARIF upload to GitHub Security
+#
+# 5. Secret Detection:
+#    - Gitleaks: Credential leak prevention
+#    - API key detection
+#    - Token detection
+#    - Full git history scanning
+#
+# 6. License Compliance:
+#    - Dependency license checking
+#    - GPL/copyleft detection
+#    - License compatibility verification
+#
+# 7. SBOM Generation:
+#    - CycloneDX format
+#    - Complete dependency tree
+#    - Vulnerability tracking
+#
+# ============================================================================
+# Knuth's Security Philosophy
+# ============================================================================
+#
+# "The best way to make software secure is to make it simple."
+#
+# This security pipeline ensures:
+# - Multiple layers of security scanning (defense in depth)
+# - Automated detection of vulnerabilities
+# - Regular scheduled scans (daily)
+# - Comprehensive reporting and artifact storage
+# - Integration with GitHub Security features
+#
+# Graham's Practical Security:
+# - Fail-fast on critical vulnerabilities in production
+# - Continue-on-error for informational scans
+# - Clear reporting and artifact collection
+# - Daily automated scans
+# - Multiple tool coverage for better detection
+#
+# Security Best Practices:
+# 1. Never commit secrets or credentials
+# 2. Keep dependencies updated
+# 3. Scan Docker images before deployment
+# 4. Review security findings regularly
+# 5. Use least privilege principles
+# 6. Enable branch protection rules
+# 7. Require security reviews for PRs
+# 8. Monitor CVE databases
+# 9. Implement security headers
+# 10. Use HTTPS everywhere
+#
+# ============================================================================

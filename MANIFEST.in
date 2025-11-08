@@ -1,0 +1,86 @@
+# ============================================================================
+# Color Transfer Framework v2.0 - Distribution Manifest
+# Specifies additional files to include in source distributions
+# ============================================================================
+
+# Core documentation
+include README.md
+include LICENSE
+include CHANGELOG.md
+include .env.example
+
+# Architecture and analysis documentation
+include ARCHITECTURE.md
+include INTERFACE_README.md
+
+# Configuration files
+include pyproject.toml
+include requirements.txt
+include requirements-test.txt
+
+# Docker and deployment files
+include Dockerfile
+include .dockerignore
+include docker-compose.yml
+
+# Package metadata
+include MANIFEST.in
+
+# Type hints
+recursive-include color_transfer_framework *.py
+recursive-include color_transfer_framework py.typed
+
+# Configuration and data files
+recursive-include color_transfer_framework *.yaml
+recursive-include color_transfer_framework *.yml
+recursive-include color_transfer_framework *.json
+
+# Documentation within package
+recursive-include color_transfer_framework *.md
+
+# Exclude unnecessary files
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude *.pyd
+global-exclude __pycache__
+global-exclude .DS_Store
+global-exclude *.so
+global-exclude *.dylib
+global-exclude .git*
+
+# Exclude test files
+recursive-exclude tests *
+recursive-exclude tests *.py
+
+# Exclude build artifacts
+recursive-exclude dist *
+recursive-exclude build *
+recursive-exclude *.egg-info *
+
+# Exclude images and analysis scripts
+exclude *.png
+exclude *.jpg
+exclude *.PNG
+exclude experimental*.py
+exclude run_*.py
+exclude *_analysis.py
+exclude Capture.PNG
+
+# Exclude development files
+exclude .mutmut-config.py
+exclude Makefile
+
+# ============================================================================
+# Graham's Distribution Philosophy
+# ============================================================================
+#
+# "Include what's needed, exclude what's not" - Practical approach
+#
+# This manifest ensures:
+# 1. All necessary code and documentation is included
+# 2. Build artifacts and test files are excluded
+# 3. Configuration examples are included
+# 4. Package size is minimized
+# 5. Users get a clean, professional distribution
+#
+# ============================================================================

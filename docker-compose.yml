@@ -1,0 +1,394 @@
+# ============================================================================
+# Color Transfer Framework v2.0 - Docker Compose Configuration
+# Complete local development and production stack
+# ============================================================================
+#
+# Usage:
+#   Development: docker-compose up
+#   Production:  docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+#   Specific:    docker-compose up api redis
+#
+# Services:
+#   - api: FastAPI REST API (port 8000)
+#   - web: Flask Web UI (port 5000)
+#   - web_enhanced: Enhanced Flask Web UI (port 5001)
+#   - redis: Redis cache and message broker (port 6379)
+#   - celery_worker: Async task worker
+#   - prometheus: Metrics collection (port 9090) [optional]
+#   - grafana: Metrics visualization (port 3000) [optional]
+#
+# ============================================================================
+
+version: '3.8'
+
+# ============================================================================
+# Services
+# ============================================================================
+
+services:
+  # --------------------------------------------------------------------------
+  # Redis - Cache and Message Broker
+  # --------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: color-transfer-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - color-transfer-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # --------------------------------------------------------------------------
+  # FastAPI REST API
+  # --------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PYTHON_VERSION: "3.11"
+        INTERFACE: api
+    image: color-transfer:api
+    container_name: color-transfer-api
+    restart: unless-stopped
+    environment:
+      - INTERFACE=api
+      - API_PORT=8000
+      - WORKERS=4
+      - MAX_REQUESTS=1000
+      - TIMEOUT=60
+      # Redis configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      # Celery configuration
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      # Application settings
+      - LOG_LEVEL=info
+      - ENABLE_METRICS=true
+      - ENABLE_RATE_LIMIT=true
+      - RATE_LIMIT_PER_MINUTE=60
+      # Security
+      - ALLOWED_ORIGINS=*
+      - API_KEY_REQUIRED=false
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - color-transfer-net
+    healthcheck:
+      test: ["CMD", "python", "/app/healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # --------------------------------------------------------------------------
+  # Flask Web UI
+  # --------------------------------------------------------------------------
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PYTHON_VERSION: "3.11"
+        INTERFACE: web
+    image: color-transfer:web
+    container_name: color-transfer-web
+    restart: unless-stopped
+    environment:
+      - INTERFACE=web
+      - WEB_PORT=5000
+      - WORKERS=2
+      - TIMEOUT=120
+      # Redis configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      # Application settings
+      - LOG_LEVEL=info
+      - MAX_UPLOAD_SIZE=10485760  # 10MB
+      - ALLOWED_EXTENSIONS=jpg,jpeg,png,bmp,tiff
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - color-transfer-net
+    healthcheck:
+      test: ["CMD", "python", "/app/healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # --------------------------------------------------------------------------
+  # Enhanced Flask Web UI (Advanced Features)
+  # --------------------------------------------------------------------------
+  web_enhanced:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PYTHON_VERSION: "3.11"
+        INTERFACE: web_enhanced
+    image: color-transfer:web-enhanced
+    container_name: color-transfer-web-enhanced
+    restart: unless-stopped
+    environment:
+      - INTERFACE=web_enhanced
+      - WEB_PORT=5000
+      - WORKERS=2
+      - TIMEOUT=120
+      # Redis configuration
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      # Application settings
+      - LOG_LEVEL=info
+      - MAX_UPLOAD_SIZE=10485760
+      - ALLOWED_EXTENSIONS=jpg,jpeg,png,bmp,tiff
+    ports:
+      - "5001:5000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - color-transfer-net
+    healthcheck:
+      test: ["CMD", "python", "/app/healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # --------------------------------------------------------------------------
+  # Celery Worker - Async Task Processing
+  # --------------------------------------------------------------------------
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PYTHON_VERSION: "3.11"
+        INTERFACE: cli
+    image: color-transfer:worker
+    container_name: color-transfer-celery-worker
+    restart: unless-stopped
+    command: >
+      celery -A color_transfer_framework.performance.distributed_processing worker
+      --loglevel=info
+      --concurrency=4
+      --max-tasks-per-child=100
+      --pool=prefork
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/2
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - LOG_LEVEL=info
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - color-transfer-net
+    healthcheck:
+      test: ["CMD", "celery", "-A", "color_transfer_framework.performance.distributed_processing", "inspect", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+# ============================================================================
+# Optional Monitoring Services (Uncomment to enable)
+# ============================================================================
+
+  # --------------------------------------------------------------------------
+  # Prometheus - Metrics Collection
+  # --------------------------------------------------------------------------
+  # prometheus:
+  #   image: prom/prometheus:latest
+  #   container_name: color-transfer-prometheus
+  #   restart: unless-stopped
+  #   command:
+  #     - '--config.file=/etc/prometheus/prometheus.yml'
+  #     - '--storage.tsdb.path=/prometheus'
+  #     - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+  #     - '--web.console.templates=/usr/share/prometheus/consoles'
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+  #     - prometheus_data:/prometheus
+  #   depends_on:
+  #     - api
+  #   networks:
+  #     - color-transfer-net
+  #
+  # --------------------------------------------------------------------------
+  # Grafana - Metrics Visualization
+  # --------------------------------------------------------------------------
+  # grafana:
+  #   image: grafana/grafana:latest
+  #   container_name: color-transfer-grafana
+  #   restart: unless-stopped
+  #   environment:
+  #     - GF_SECURITY_ADMIN_USER=admin
+  #     - GF_SECURITY_ADMIN_PASSWORD=admin
+  #     - GF_USERS_ALLOW_SIGN_UP=false
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - grafana_data:/var/lib/grafana
+  #     - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+  #     - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+  #   depends_on:
+  #     - prometheus
+  #   networks:
+  #     - color-transfer-net
+
+# ============================================================================
+# Networks
+# ============================================================================
+
+networks:
+  color-transfer-net:
+    driver: bridge
+    name: color-transfer-network
+
+# ============================================================================
+# Volumes
+# ============================================================================
+
+volumes:
+  redis_data:
+    driver: local
+    name: color-transfer-redis-data
+
+  # Uncomment if enabling monitoring
+  # prometheus_data:
+  #   driver: local
+  #   name: color-transfer-prometheus-data
+  #
+  # grafana_data:
+  #   driver: local
+  #   name: color-transfer-grafana-data
+
+# ============================================================================
+# Usage Examples
+# ============================================================================
+#
+# Start all services:
+#   docker-compose up -d
+#
+# Start specific services:
+#   docker-compose up -d api redis
+#   docker-compose up -d web redis
+#
+# View logs:
+#   docker-compose logs -f api
+#   docker-compose logs -f --tail=100 api
+#
+# Stop all services:
+#   docker-compose down
+#
+# Stop and remove volumes:
+#   docker-compose down -v
+#
+# Rebuild and restart:
+#   docker-compose up -d --build
+#
+# Scale workers:
+#   docker-compose up -d --scale celery_worker=4
+#
+# Execute commands in container:
+#   docker-compose exec api python -m color_transfer_framework.interface_layer.cli --help
+#   docker-compose exec api bash
+#
+# Check service health:
+#   docker-compose ps
+#
+# View resource usage:
+#   docker stats
+#
+# ============================================================================
+# Environment Variables
+# ============================================================================
+#
+# You can override any environment variable by creating a .env file in the
+# same directory as this docker-compose.yml file:
+#
+# Example .env file:
+#   WORKERS=8
+#   API_PORT=8080
+#   REDIS_HOST=custom-redis
+#   LOG_LEVEL=debug
+#
+# ============================================================================
+# Knuth's Performance Considerations
+# ============================================================================
+#
+# "Bottlenecks occur in surprising places, so don't try to second guess and
+#  put in a speed hack until you have proven that's where the bottleneck is."
+#
+# Performance tuning:
+# 1. WORKERS: Number of process workers (recommend: 2 * CPU cores + 1)
+# 2. MAX_REQUESTS: Prevent memory leaks by recycling workers
+# 3. Redis maxmemory: Limit cache size to prevent OOM
+# 4. Celery concurrency: Balance between throughput and memory
+#
+# Resource limits (add to service definitions for production):
+#   deploy:
+#     resources:
+#       limits:
+#         cpus: '2.0'
+#         memory: 2G
+#       reservations:
+#         cpus: '1.0'
+#         memory: 1G
+#
+# ============================================================================
+# Security Best Practices (Graham's Practical Approach)
+# ============================================================================
+#
+# 1. Use secrets management for sensitive data (not env vars)
+# 2. Run containers as non-root (already configured in Dockerfile)
+# 3. Use read-only filesystems where possible
+# 4. Scan images for vulnerabilities regularly
+# 5. Keep base images updated
+# 6. Use specific image tags (not 'latest' in production)
+# 7. Limit container capabilities
+# 8. Use network isolation
+# 9. Enable resource limits
+# 10. Implement proper logging and monitoring
+#
+# ============================================================================
