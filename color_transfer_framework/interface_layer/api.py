@@ -7,7 +7,11 @@ High-performance RESTful API for color transfer operations.
 Endpoints:
 - GET /api/v1/algorithms: List available algorithms
 - POST /api/v1/transfer: Perform color transfer
-- GET /api/v1/health: Health check
+- GET /api/v1/health: Health check (deprecated, use /health)
+- GET /health/live: Liveness probe (Kubernetes-compatible)
+- GET /health/ready: Readiness probe (Kubernetes-compatible)
+- GET /health: Full health status
+- GET /metrics: Performance metrics
 """
 
 from fastapi import FastAPI, HTTPException, status, WebSocket, WebSocketDisconnect
@@ -29,6 +33,19 @@ from .models import (
 from .orchestrator import TransferOrchestrator
 from ..transfer_engine import TransferConfig, TransferAlgorithm
 from .. import __version__
+
+# Import middleware (Phase 13)
+from ..middleware import (
+    SecurityMiddleware,
+    MonitoringMiddleware,
+    create_fastapi_middleware
+)
+from ..middleware.integration import ColorTransferMiddleware
+from ..security.health_checker import (
+    create_redis_check,
+    create_disk_space_check,
+    create_memory_check
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -54,6 +71,51 @@ app.add_middleware(
 
 # Initialize orchestrator (singleton for the app lifecycle)
 orchestrator = TransferOrchestrator()
+
+# Initialize middleware (Phase 13: Security & Operations)
+security_middleware = SecurityMiddleware(
+    enable_rate_limiting=True,
+    enable_input_validation=True
+)
+
+monitoring_middleware = MonitoringMiddleware(
+    enable_health_checks=True,
+    enable_metrics=True
+)
+
+# Add dependency checks to health checker
+monitoring_middleware.health_checker.add_dependency_check(
+    create_disk_space_check(min_free_gb=1.0)
+)
+monitoring_middleware.health_checker.add_dependency_check(
+    create_memory_check(max_usage_percent=90.0)
+)
+
+# Try to add Redis check if available
+try:
+    import redis
+    from ..security.config_manager import ConfigManager
+    config = ConfigManager.from_env()
+    if config.redis_enabled:
+        r = redis.Redis(host=config.redis_host, port=config.redis_port)
+        monitoring_middleware.health_checker.add_dependency_check(
+            create_redis_check(r)
+        )
+except Exception as e:
+    logger.info(f"Redis health check not configured: {e}")
+
+# Add Color Transfer middleware (combines security + monitoring)
+app.add_middleware(
+    ColorTransferMiddleware,
+    security_middleware=security_middleware,
+    monitoring_middleware=monitoring_middleware,
+    enable_rate_limiting=True,
+    enable_metrics=True
+)
+
+# Store middleware on app for access in endpoints
+app.state.security = security_middleware
+app.state.monitoring = monitoring_middleware
 
 
 # WebSocket Connection Manager
@@ -99,8 +161,96 @@ async def root():
         "name": "Color Transfer Framework API",
         "version": __version__,
         "docs": "/docs",
-        "health": "/api/v1/health"
+        "health": "/health",
+        "health_live": "/health/live",
+        "health_ready": "/health/ready",
+        "metrics": "/metrics",
+        "legacy_health": "/api/v1/health"
     }
+
+
+# Health Check Endpoints (Phase 13: Kubernetes-compatible)
+
+@app.get("/health/live")
+async def health_liveness():
+    """
+    Liveness probe (Kubernetes-compatible).
+
+    Checks if the process is alive and responsive.
+    Returns 200 if healthy, 503 if unhealthy.
+
+    Used by Kubernetes to determine if container should be restarted.
+    """
+    result = monitoring_middleware.check_liveness()
+
+    if result.status.value == "healthy":
+        return JSONResponse(
+            status_code=200,
+            content=result.to_dict()
+        )
+    else:
+        return JSONResponse(
+            status_code=503,
+            content=result.to_dict()
+        )
+
+
+@app.get("/health/ready")
+async def health_readiness():
+    """
+    Readiness probe (Kubernetes-compatible).
+
+    Checks if the service can handle requests (dependencies available).
+    Returns 200 if ready, 503 if not ready.
+
+    Used by Kubernetes to determine if pod should receive traffic.
+    """
+    result = monitoring_middleware.check_readiness()
+
+    if result.status.value == "healthy":
+        return JSONResponse(
+            status_code=200,
+            content=result.to_dict()
+        )
+    elif result.status.value == "degraded":
+        return JSONResponse(
+            status_code=429,  # Partial capacity
+            content=result.to_dict()
+        )
+    else:
+        return JSONResponse(
+            status_code=503,
+            content=result.to_dict()
+        )
+
+
+@app.get("/health")
+async def health_full():
+    """
+    Full health status with all checks and metrics.
+
+    Returns comprehensive health information including:
+    - Liveness status
+    - Readiness status
+    - Dependency health
+    - Uptime metrics
+    - Success rate
+    """
+    return monitoring_middleware.get_health_status()
+
+
+@app.get("/metrics")
+async def metrics():
+    """
+    Prometheus-compatible metrics endpoint.
+
+    Returns performance metrics including:
+    - Request latency percentiles (p50, p95, p99)
+    - Throughput (requests per second)
+    - Error rate
+    - Status code distribution
+    """
+    return monitoring_middleware.get_metrics()
 
 
 @app.websocket("/api/v1/ws/progress/{client_id}")
