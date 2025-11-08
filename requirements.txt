@@ -5,6 +5,15 @@ numpy>=1.20.0
 opencv-python>=4.5.0
 psutil>=5.8.0  # For performance profiling
 
+# Interface Layer dependencies
+typer>=0.9.0  # CLI
+rich>=13.0.0  # CLI formatting
+fastapi>=0.100.0  # REST API
+uvicorn>=0.23.0  # ASGI server
+python-multipart>=0.0.6  # File uploads in FastAPI
+pydantic>=2.0.0  # Data validation
+flask>=2.3.0  # WebUI
+
 # Optional (for GPU acceleration)
 # torch>=1.9.0
 # torchvision>=0.10.0

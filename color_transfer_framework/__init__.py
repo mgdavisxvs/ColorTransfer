@@ -16,8 +16,8 @@ This framework follows SOLID principles with clear separation of concerns:
 5. DiagnosticsVisualizer: Visualization and diagnostics ✓
 6. ComplexityAnalyzer: Emergent behavior and convergence analysis ✓
 7. MLHybridModule: Machine learning integration ⏳
-8. InterfaceLayer: CLI, GUI, and API interfaces ⏳
-9. PersistenceLogger: Data persistence and logging ⏳
+8. InterfaceLayer: CLI, GUI, and API interfaces ✓
+9. PersistenceLogger: Data persistence and logging ✓
 10. DocumentationModule: Auto-documentation generation ⏳
 
 Author: AI Research Agent
@@ -67,17 +67,14 @@ except ImportError:
 # except ImportError:
 #     ML_AVAILABLE = False
 
-# try:
-#     from .interface_layer import InterfaceLayer
-#     INTERFACE_AVAILABLE = True
-# except ImportError:
-#     INTERFACE_AVAILABLE = False
-
-# try:
-#     from .persistence_logger import PersistenceLogger
-#     PERSISTENCE_AVAILABLE = True
-# except ImportError:
-#     PERSISTENCE_AVAILABLE = False
+try:
+    from .interface_layer import TransferOrchestrator
+    from .persistence_logger import PersistenceLogger
+    INTERFACE_AVAILABLE = True
+    PERSISTENCE_AVAILABLE = True
+except ImportError:
+    INTERFACE_AVAILABLE = False
+    PERSISTENCE_AVAILABLE = False
 
 # try:
 #     from .documentation_module import DocumentationModule
@@ -107,8 +104,8 @@ __all__ = [
     'DiagnosticsVisualizer',
     'ComplexityAnalyzer',
     'analyze_transfer_convergence',
+    'TransferOrchestrator',
+    'PersistenceLogger',
     # 'MLHybridModule',
-    # 'InterfaceLayer',
-    # 'PersistenceLogger',
     # 'DocumentationModule',
 ]

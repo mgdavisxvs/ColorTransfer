@@ -361,100 +361,191 @@ refined = ml_module.refine_transfer(target, model)
 
 ---
 
-### 8. InterfaceLayer
+### 8. InterfaceLayer (✅ IMPLEMENTED - Phase 5)
 
-**File:** `interface_layer.py`
+**Package:** `interface_layer/` (sub-package)
 
-**Responsibility:** User interfaces (CLI, GUI, API)
+**Responsibility:** User interfaces (CLI, WebUI, REST API) and orchestration
+
+**Key Modules:**
+- `orchestrator.py` - Central coordination logic (TransferOrchestrator)
+- `cli.py` - Typer-based command-line interface
+- `api.py` - FastAPI REST service
+- `web.py` - Flask web interface
+- `models.py` - Pydantic data models
 
 **Key Classes:**
-- `CLIHandler` - Command-line interface
-- `GUIHandler` - Graphical interface (Tkinter/Qt)
-- `APIServer` - REST API (FastAPI)
-- `InterfaceLayer` - Unified interface manager
 
-**Interfaces:**
-1. **CLI** - Command-line tool
-2. **GUI** - Desktop application
-3. **Web API** - REST endpoints
-4. **Batch Processing** - Directory-based batch jobs
+**TransferOrchestrator:**
+- Central facade for all interfaces
+- Coordinates TransferEngine, OptimizerEngine, DiagnosticsVisualizer
+- Handles base64 encoding/decoding for API
+- Manages performance profiling
+- Integrates PersistenceLogger
 
 **Key Methods:**
 ```python
-# CLI
-parse_args() -> Config
-run_cli(args) -> None
+# Orchestrator
+transfer(source, target, config, mask, enable_gpu, generate_diagnostics)
+transfer_from_paths(source_path, target_path, output_path, ...)
+transfer_from_base64(source_b64, target_b64, config, ...)
 
-# GUI
-launch_gui() -> None
+# CLI (Typer)
+transfer(source, target, output, algorithm, blend, mask, gpu, visualize)
+algorithms()  # List available algorithms
+info()  # Show framework information
 
-# API
-serve_api(host, port) -> None
-create_endpoints() -> FastAPI
+# API (FastAPI)
+GET  /api/v1/health
+GET  /api/v1/algorithms
+POST /api/v1/transfer
+
+# WebUI (Flask)
+GET  /
+POST /transfer
+GET  /download/<filename>
 ```
 
 **CLI Example:**
 ```bash
-python -m color_transfer_framework \
-    --source sunset.jpg \
-    --target portrait.jpg \
+python -m color_transfer_framework.interface_layer.cli transfer \
+    sunset.jpg portrait.jpg \
     --output result.jpg \
-    --algorithm reinhard \
+    --algo reinhard_lch \
+    --blend 0.7 \
+    --visualize \
     --gpu
 ```
 
 **API Example:**
-```python
-from interface_layer import APIServer
+```bash
+uvicorn color_transfer_framework.interface_layer.api:app --reload
 
-server = APIServer()
-server.serve_api(host='0.0.0.0', port=8000)
-# POST /transfer with source and target images
+# POST to http://localhost:8000/api/v1/transfer
+{
+  "source_image": "base64...",
+  "target_image": "base64...",
+  "config": {"algorithm": "reinhard_lab", "blend_factor": 0.8}
+}
 ```
 
-**Dependencies:** `argparse`, `FastAPI`, `uvicorn`, `tkinter` (GUI)
+**WebUI Example:**
+```bash
+python -m color_transfer_framework.interface_layer.web
+# Visit http://localhost:5000
+```
+
+**Design Patterns:**
+- **Facade Pattern**: TransferOrchestrator simplifies complex subsystems
+- **Dependency Injection**: Components injected for testability
+- **Strategy Pattern**: Algorithm selection via configuration
+
+**Dependencies:** `typer`, `rich`, `fastapi`, `uvicorn`, `pydantic`, `flask`
+
+**Tests:** `tests/test_cli.py`, `tests/test_api.py` (180+ tests)
 
 ---
 
-### 9. PersistenceLogger
+### 9. PersistenceLogger (✅ IMPLEMENTED - Phase 5)
 
 **File:** `persistence_logger.py`
 
-**Responsibility:** Data persistence and logging
+**Responsibility:** Data persistence and logging for auditing and reproducibility
 
 **Key Classes:**
-- `LogLevel(Enum)` - Logging levels
-- `RunMetadata` - Metadata container
-- `PersistenceLogger` - Persistence engine
 
-**Persisted Data:**
-1. **Configuration** - Algorithm parameters
-2. **Run Metadata** - Execution details
-3. **Statistics** - Color statistics history
-4. **Results** - Output images and metrics
-5. **Logs** - Execution logs
+**AbstractPersistence (Protocol):**
+- Abstract interface for persistence backends
+- Enables swapping backends (SQLite, PostgreSQL, MongoDB)
 
-**Storage Backends:**
-- JSON files (default)
-- SQLite database (optional)
-- MongoDB (optional, for large-scale)
+**SQLitePersistence:**
+- Concrete implementation using SQLite
+- Default, lightweight, serverless storage
+- Automatic schema creation and migration
+
+**PersistenceLogger:**
+- High-level logging interface
+- Convenience wrapper around persistence backend
+- Auto-serialization of config and metrics to JSON
+
+**TransferRun (Dataclass):**
+- Record of single transfer operation
+- Contains: run_id, timestamp, image hashes, algorithm, config, metrics, interface_type
+
+**Database Schema:**
+
+**Table: transfer_runs**
+- `run_id` (UUID, Primary Key)
+- `timestamp` (ISO 8601 string)
+- `source_hash` (SHA256 of source image)
+- `target_hash` (SHA256 of target image)
+- `result_hash` (SHA256 of result image)
+- `algorithm` (string: "reinhard_lab", etc.)
+- `config_json` (TEXT blob of TransferConfig)
+- `metrics_json` (TEXT blob of PerformanceMetrics)
+- `interface_type` (string: "CLI", "API", "WebUI")
+- `success` (INTEGER boolean)
+- `error_message` (TEXT, optional)
+
+**Table: metadata**
+- `key` (TEXT, Primary Key)
+- `value` (TEXT)
 
 **Key Methods:**
 ```python
-save_run(metadata, stats, results) -> str
-load_config(path) -> Config
-export_results(directory) -> None
-query_runs(filter) -> List[RunMetadata]
+# Logging
+log_run(run: TransferRun) -> None
+log_transfer(run_id, source_hash, target_hash, result_hash, algorithm,
+             config, metrics, interface_type, success, error_message) -> None
+
+# Querying
+get_run(run_id: str) -> TransferRun | None
+list_runs(limit=100, algorithm=None, interface_type=None) -> List[TransferRun]
+get_history(limit=100, algorithm=None) -> List[TransferRun]
+
+# Statistics
+get_statistics() -> Dict[str, Any]
+get_stats() -> Dict[str, Any]
 ```
+
+**Logged Automatically:**
+- Every transfer operation (via TransferOrchestrator)
+- Interface type (CLI, API, WebUI)
+- Complete configuration for reproducibility
+- Performance metrics
+- Image hashes for deduplication
 
 **Example Usage:**
 ```python
-logger = PersistenceLogger(backend='sqlite')
-run_id = logger.save_run(metadata, stats, results)
-history = logger.query_runs({'algorithm': 'reinhard'})
+from color_transfer_framework.persistence_logger import PersistenceLogger
+
+logger = PersistenceLogger()  # Uses SQLite by default
+
+# Get transfer history
+recent_runs = logger.get_history(limit=10)
+
+# Get aggregate statistics
+stats = logger.get_stats()
+print(f"Total runs: {stats['total_runs']}")
+print(f"Success rate: {stats['success_rate']:.1f}%")
+print(f"Avg execution time: {stats['avg_execution_time_ms']:.2f} ms")
+
+# Query specific runs
+cli_runs = logger.get_history(algorithm="reinhard_lab")
 ```
 
-**Dependencies:** `sqlite3`, `pymongo` (optional)
+**Design Patterns:**
+- **Protocol Pattern**: AbstractPersistence defines backend interface
+- **Repository Pattern**: Clean data access layer
+- **Single Responsibility**: Logging only, no business logic
+
+**Dependencies:** Built-in `sqlite3` (no external deps)
+
+**Tests:** `tests/test_persistence.py` (30+ tests)
+
+**Integration:** Automatically integrated into TransferOrchestrator
+- All CLI, API, and WebUI operations are logged
+- Graceful degradation if logging fails (doesn't break operations)
 
 ---
 
@@ -617,6 +708,70 @@ class TransformerRefinement(MLModel):
 
 # Use
 ml_module.register_model('transformer', TransformerRefinement)
+```
+
+---
+
+## Tooling and Scripts (✅ Phase 5)
+
+### Performance Benchmarking Suite
+
+**Script:** `run_performance_suite.py`
+
+**Purpose:** Comprehensive, automated performance benchmarking across all algorithms, execution modes, image sizes, and batch sizes.
+
+**Test Matrix:**
+- **Algorithms:** reinhard_lab, reinhard_lch, rgb_direct, histogram_match
+- **Execution Modes:** CPU, GPU (if available)
+- **Image Sizes:** 512x512 (small), 1920x1080 (HD), 3840x2160 (4K)
+- **Batch Sizes:** 1, 10, 50 images
+
+**Metrics Collected:**
+- Average execution time (ms)
+- Standard deviation (ms)
+- Throughput (images/sec)
+- Peak memory usage (MB)
+- Peak VRAM usage (MB, for GPU)
+
+**Output Files:**
+- `benchmark_results.csv` - Raw results in CSV format
+- `BENCHMARKS.md` - Human-readable summary report with:
+  - Performance by algorithm
+  - Performance by image size
+  - Best performers (fastest, highest throughput, lowest memory)
+
+**Usage:**
+```bash
+# Full benchmark suite
+python run_performance_suite.py
+
+# Custom benchmark
+python run_performance_suite.py \
+    --algorithms reinhard_lab rgb_direct \
+    --modes cpu gpu \
+    --sizes 512x512 1080p 4k \
+    --batch-sizes 1 10 50 \
+    --iterations 10 \
+    --output ./my_benchmarks
+```
+
+**Features:**
+- Synthetic image generation (no external image dependencies)
+- Warm-up runs to eliminate startup overhead
+- Multiple iterations for statistical significance
+- Parallel execution support
+- Graceful GPU detection and fallback
+
+**Example Output:**
+```
+Performance by Algorithm
+-------------------------
+| Algorithm        | Avg Time (ms) | Throughput (img/s) |
+|------------------|---------------|-------------------|
+| rgb_direct       | 12.5          | 80.0              |
+| reinhard_lab     | 45.3          | 22.1              |
+| reinhard_lch     | 52.1          | 19.2              |
+| histogram_match  | 78.9          | 12.7              |
 ```
 
 ---
