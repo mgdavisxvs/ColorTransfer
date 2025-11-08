@@ -104,27 +104,122 @@ redis_connections_active
 
 ### Grafana Dashboards
 
-**Recommended Dashboard Panels:**
+The framework includes pre-configured Grafana dashboards for comprehensive monitoring.
+
+**Access Grafana:**
+```bash
+# Start monitoring stack
+docker-compose up -d prometheus grafana
+
+# Access Grafana
+open http://localhost:3000
+
+# Default credentials
+Username: admin
+Password: admin
+```
+
+**Pre-configured Dashboard: Color Transfer Framework - Overview**
+
+This comprehensive dashboard is automatically provisioned and includes:
+
+#### 1. System Overview Section
+- **CPU Usage Gauge**: Real-time CPU utilization per service
+  - Thresholds: Green (< 70%), Yellow (70-90%), Red (> 90%)
+- **Memory Usage Gauge**: Memory consumption per service
+  - Thresholds: Green (< 1.5GB), Yellow (1.5-1.9GB), Red (> 1.9GB)
+- **Request Rate Graph**: Requests per second across all services
+  - Shows trends by service, method, and status code
+
+#### 2. API Performance Section
+- **Response Time Percentiles**: p50, p95, p99 latency tracking
+  - Target: p95 < 1s, p99 < 2s
+- **Error Rate Graph**: 5xx errors as percentage of total requests
+  - Target: < 0.1%, Warning: > 1%, Critical: > 5%
+- **Requests Per Minute**: Total API throughput
+- **Current p95 Response Time**: Single stat with threshold coloring
+- **Current Error Rate**: Single stat with threshold alerts
+- **Cache Hit Rate**: Redis cache efficiency metric
+
+#### 3. Application Metrics Section
+- **Color Transfer Operations by Algorithm**: Operation rate per algorithm
+  - Shows which algorithms are most frequently used
+- **Operation Duration (p95)**: Processing time by algorithm
+  - Helps identify slow algorithms
+- **Errors by Type**: Error categorization and trends
+- **Top 10 Algorithms Table**: Most popular algorithms in last hour
+  - Sortable table with operations per second
+
+#### 4. Infrastructure Section
+- **Redis Active Connections**: Connection pool usage
+- **Celery Queue Length**: Pending tasks in queue
+  - Thresholds: Green (< 100), Yellow (100-1000), Red (> 1000)
+
+**Dashboard Features:**
+- Auto-refresh every 10 seconds
+- 1-hour default time range
+- Customizable refresh intervals (5s, 10s, 30s, 1m, 5m, 15m, 30m, 1h)
+- Threshold-based color coding
+- Detailed legends with mean/max/sum calculations
+- Multi-line tooltips for comparison
+
+**Custom Queries for Manual Panels:**
+
+If you need to create custom panels, here are useful queries:
 
 1. **Request Rate**
-   - Query: `rate(http_requests_total[5m])`
-   - Type: Graph
+   ```promql
+   rate(http_requests_total[5m])
+   ```
 
 2. **Response Time (p95)**
-   - Query: `histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))`
-   - Type: Graph
+   ```promql
+   histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
+   ```
 
 3. **Error Rate**
-   - Query: `rate(http_requests_total{status=~"5.."}[5m])`
-   - Type: Graph
+   ```promql
+   rate(http_requests_total{status=~"5.."}[5m])
+   ```
 
 4. **CPU Usage**
-   - Query: `rate(process_cpu_seconds_total[5m]) * 100`
-   - Type: Gauge
+   ```promql
+   rate(process_cpu_seconds_total[5m]) * 100
+   ```
 
 5. **Memory Usage**
-   - Query: `process_resident_memory_bytes`
-   - Type: Gauge
+   ```promql
+   process_resident_memory_bytes
+   ```
+
+6. **Color Transfer Operations by Algorithm**
+   ```promql
+   rate(color_transfer_operations_total[5m])
+   ```
+
+7. **Cache Hit Ratio**
+   ```promql
+   redis_cache_hits_total / (redis_cache_hits_total + redis_cache_misses_total)
+   ```
+
+**Dashboard Management:**
+
+```bash
+# View Grafana logs
+docker-compose logs -f grafana
+
+# Restart Grafana (reload dashboards)
+docker-compose restart grafana
+
+# Access Grafana admin
+# http://localhost:3000/admin
+
+# Export dashboard (for backup)
+# Settings → JSON Model → Copy
+
+# Import custom dashboard
+# Create → Import → Paste JSON
+```
 
 ### Alerting Rules
 

@@ -165,6 +165,8 @@ docker-up: ## Start all services with docker-compose
 	@echo "🌐 API: http://localhost:$(API_PORT)"
 	@echo "🌐 Web UI: http://localhost:$(WEB_PORT)"
 	@echo "🌐 Enhanced Web UI: http://localhost:5001"
+	@echo "📊 Prometheus: http://localhost:9090"
+	@echo "📈 Grafana: http://localhost:3000 (admin/admin)"
 
 docker-down: ## Stop all services
 	$(DOCKER_COMPOSE) down
@@ -196,6 +198,37 @@ docker-shell-api: ## Open shell in API container
 
 docker-shell-web: ## Open shell in Web container
 	$(DOCKER_COMPOSE) exec web bash
+
+# ============================================================================
+# Monitoring
+# ============================================================================
+
+monitoring-up: ## Start monitoring services (Prometheus + Grafana)
+	$(DOCKER_COMPOSE) up -d prometheus grafana
+	@echo "✅ Monitoring services started"
+	@echo "📊 Prometheus: http://localhost:9090"
+	@echo "📈 Grafana: http://localhost:3000 (admin/admin)"
+
+monitoring-down: ## Stop monitoring services
+	$(DOCKER_COMPOSE) stop prometheus grafana
+	@echo "✅ Monitoring services stopped"
+
+monitoring-logs: ## Show monitoring logs
+	$(DOCKER_COMPOSE) logs -f prometheus grafana
+
+monitoring-status: ## Check monitoring service status
+	@echo "Checking monitoring services..."
+	@curl -s http://localhost:9090/-/healthy && echo "✅ Prometheus is healthy" || echo "❌ Prometheus is not responding"
+	@curl -s http://localhost:3000/api/health && echo "✅ Grafana is healthy" || echo "❌ Grafana is not responding"
+
+grafana-open: ## Open Grafana in browser
+	@echo "Opening Grafana dashboard..."
+	@echo "Default credentials: admin / admin"
+	@open http://localhost:3000 || xdg-open http://localhost:3000 || echo "Please open http://localhost:3000"
+
+prometheus-open: ## Open Prometheus in browser
+	@echo "Opening Prometheus..."
+	@open http://localhost:9090 || xdg-open http://localhost:9090 || echo "Please open http://localhost:9090"
 
 # ============================================================================
 # Security

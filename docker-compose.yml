@@ -229,52 +229,66 @@ services:
       start_period: 60s
 
 # ============================================================================
-# Optional Monitoring Services (Uncomment to enable)
+# Monitoring Services
 # ============================================================================
 
   # --------------------------------------------------------------------------
   # Prometheus - Metrics Collection
   # --------------------------------------------------------------------------
-  # prometheus:
-  #   image: prom/prometheus:latest
-  #   container_name: color-transfer-prometheus
-  #   restart: unless-stopped
-  #   command:
-  #     - '--config.file=/etc/prometheus/prometheus.yml'
-  #     - '--storage.tsdb.path=/prometheus'
-  #     - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-  #     - '--web.console.templates=/usr/share/prometheus/consoles'
-  #   ports:
-  #     - "9090:9090"
-  #   volumes:
-  #     - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-  #     - prometheus_data:/prometheus
-  #   depends_on:
-  #     - api
-  #   networks:
-  #     - color-transfer-net
-  #
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: color-transfer-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - api
+    networks:
+      - color-transfer-net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
   # --------------------------------------------------------------------------
   # Grafana - Metrics Visualization
   # --------------------------------------------------------------------------
-  # grafana:
-  #   image: grafana/grafana:latest
-  #   container_name: color-transfer-grafana
-  #   restart: unless-stopped
-  #   environment:
-  #     - GF_SECURITY_ADMIN_USER=admin
-  #     - GF_SECURITY_ADMIN_PASSWORD=admin
-  #     - GF_USERS_ALLOW_SIGN_UP=false
-  #   ports:
-  #     - "3000:3000"
-  #   volumes:
-  #     - grafana_data:/var/lib/grafana
-  #     - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
-  #     - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
-  #   depends_on:
-  #     - prometheus
-  #   networks:
-  #     - color-transfer-net
+  grafana:
+    image: grafana/grafana:latest
+    container_name: color-transfer-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    networks:
+      - color-transfer-net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
 # ============================================================================
 # Networks
@@ -294,14 +308,13 @@ volumes:
     driver: local
     name: color-transfer-redis-data
 
-  # Uncomment if enabling monitoring
-  # prometheus_data:
-  #   driver: local
-  #   name: color-transfer-prometheus-data
-  #
-  # grafana_data:
-  #   driver: local
-  #   name: color-transfer-grafana-data
+  prometheus_data:
+    driver: local
+    name: color-transfer-prometheus-data
+
+  grafana_data:
+    driver: local
+    name: color-transfer-grafana-data
 
 # ============================================================================
 # Usage Examples
