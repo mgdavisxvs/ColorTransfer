@@ -419,3 +419,454 @@ def cli_main():
 
 if __name__ == "__main__":
     cli_main()
+
+
+@app.command()
+def batch(
+    source: Path = typer.Argument(
+        ...,
+        help="Path to source image (color palette donor)",
+        exists=True
+    ),
+    target_dir: Path = typer.Argument(
+        ...,
+        help="Directory containing target images",
+        exists=True,
+        file_okay=False,
+        dir_okay=True
+    ),
+    output_dir: Path = typer.Option(
+        None,
+        "--output", "-o",
+        help="Output directory (default: target_dir/results)"
+    ),
+    algorithm: AlgorithmChoice = typer.Option(
+        AlgorithmChoice.reinhard_lab,
+        "--algo", "-a",
+        help="Color transfer algorithm"
+    ),
+    blend: float = typer.Option(
+        1.0,
+        "--blend", "-b",
+        min=0.0,
+        max=1.0,
+        help="Blend factor"
+    ),
+    recursive: bool = typer.Option(
+        True,
+        "--recursive", "-r",
+        help="Recursively process subdirectories"
+    ),
+    workers: int = typer.Option(
+        4,
+        "--workers", "-w",
+        min=1,
+        max=32,
+        help="Number of parallel workers"
+    ),
+    pattern: str = typer.Option(
+        "*",
+        "--pattern", "-p",
+        help="File pattern to match (e.g., '*.jpg')"
+    )
+):
+    """Process multiple images in a directory with color transfer."""
+    from ..advanced_processing import BatchProcessor
+
+    if output_dir is None:
+        output_dir = target_dir / "results"
+
+    console.print(f"\n[bold cyan]Batch Color Transfer[/bold cyan]")
+    console.print(f"Source: {source}")
+    console.print(f"Target Directory: {target_dir}")
+    console.print(f"Output Directory: {output_dir}")
+    console.print(f"Algorithm: {algorithm.value}")
+    console.print(f"Workers: {workers}\n")
+
+    # Build config
+    config = TransferConfig(
+        algorithm=TransferAlgorithm(algorithm.value),
+        blend_factor=blend
+    )
+
+    # Process batch
+    processor = BatchProcessor()
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console
+    ) as progress:
+        task = progress.add_task("Processing...", total=None)
+
+        def update_progress(current, total, filename):
+            progress.update(
+                task,
+                description=f"Processing {current}/{total}: {filename}",
+                total=total,
+                completed=current
+            )
+
+        try:
+            results = processor.process_directory(
+                source_image=str(source),
+                target_dir=str(target_dir),
+                output_dir=str(output_dir),
+                config=config,
+                recursive=recursive,
+                max_workers=workers,
+                progress_callback=update_progress,
+                pattern=pattern
+            )
+
+            # Show summary
+            summary = processor.get_summary()
+
+            console.print(f"\n[bold green]✓ Batch processing complete![/bold green]\n")
+
+            table = Table(title="Summary")
+            table.add_column("Metric", style="cyan")
+            table.add_column("Value", style="green")
+
+            table.add_row("Total Images", str(summary['total']))
+            table.add_row("Successful", str(summary['success']))
+            table.add_row("Failed", str(summary['failed']))
+            table.add_row("Success Rate", f"{summary['success_rate']:.1f}%")
+            table.add_row("Avg Time", f"{summary['avg_execution_time_ms']:.2f} ms")
+
+            console.print(table)
+
+            # Show failures if any
+            failures = [r for r in results if not r.success]
+            if failures:
+                console.print(f"\n[yellow]Failed images:[/yellow]")
+                for result in failures[:10]:  # Show first 10
+                    console.print(f"  • {result.target_path.name}: {result.error}")
+
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+            raise typer.Exit(1)
+
+
+@app.command()
+def video(
+    source: Path = typer.Argument(
+        ...,
+        help="Path to source image (color palette donor)",
+        exists=True
+    ),
+    input_video: Path = typer.Argument(
+        ...,
+        help="Path to input video file",
+        exists=True
+    ),
+    output_video: Path = typer.Option(
+        None,
+        "--output", "-o",
+        help="Path to output video (default: input_transferred.mp4)"
+    ),
+    algorithm: AlgorithmChoice = typer.Option(
+        AlgorithmChoice.reinhard_lab,
+        "--algo", "-a",
+        help="Color transfer algorithm"
+    ),
+    blend: float = typer.Option(
+        1.0,
+        "--blend", "-b",
+        min=0.0,
+        max=1.0,
+        help="Blend factor"
+    ),
+    codec: str = typer.Option(
+        "mp4v",
+        "--codec", "-c",
+        help="FourCC codec code"
+    )
+):
+    """Apply color transfer to video files frame-by-frame."""
+    from ..advanced_processing import VideoProcessor
+
+    if output_video is None:
+        output_video = input_video.parent / f"{input_video.stem}_transferred.mp4"
+
+    console.print(f"\n[bold cyan]Video Color Transfer[/bold cyan]")
+    console.print(f"Source: {source}")
+    console.print(f"Input Video: {input_video}")
+    console.print(f"Output Video: {output_video}")
+    console.print(f"Algorithm: {algorithm.value}\n")
+
+    config = TransferConfig(
+        algorithm=TransferAlgorithm(algorithm.value),
+        blend_factor=blend
+    )
+
+    processor = VideoProcessor()
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console
+    ) as progress:
+        task = progress.add_task("Processing video...", total=100)
+
+        def update_progress(current, total):
+            progress.update(task, completed=(current / total) * 100)
+
+        try:
+            info = processor.process_video(
+                source_image=str(source),
+                input_video=str(input_video),
+                output_video=str(output_video),
+                config=config,
+                progress_callback=update_progress,
+                codec=codec
+            )
+
+            console.print(f"\n[bold green]✓ Video processing complete![/bold green]")
+            console.print(f"Frames: {info.frame_count}")
+            console.print(f"Resolution: {info.width}x{info.height}")
+            console.print(f"FPS: {info.fps:.2f}")
+            console.print(f"Duration: {info.duration_seconds:.2f}s")
+            console.print(f"Output: {output_video}\n")
+
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+            raise typer.Exit(1)
+
+
+@app.command()
+def webcam(
+    source: Path = typer.Argument(
+        ...,
+        help="Path to source image (color palette donor)",
+        exists=True
+    ),
+    camera: int = typer.Option(
+        0,
+        "--camera", "-c",
+        help="Camera device ID"
+    ),
+    algorithm: AlgorithmChoice = typer.Option(
+        AlgorithmChoice.reinhard_lab,
+        "--algo", "-a",
+        help="Color transfer algorithm"
+    ),
+    blend: float = typer.Option(
+        1.0,
+        "--blend", "-b",
+        min=0.0,
+        max=1.0,
+        help="Blend factor"
+    ),
+    fps: bool = typer.Option(
+        True,
+        "--fps",
+        help="Show FPS counter"
+    ),
+    record: Optional[Path] = typer.Option(
+        None,
+        "--record", "-r",
+        help="Record output to video file"
+    ),
+    skip_frames: int = typer.Option(
+        0,
+        "--skip",
+        min=0,
+        max=10,
+        help="Skip N frames between processing (for performance)"
+    )
+):
+    """Real-time color transfer for webcam/camera feed.
+    
+    Controls:
+      q - Quit
+      s - Save current frame
+      r - Toggle recording
+      p - Pause/resume
+    """
+    from ..advanced_processing import WebcamProcessor
+
+    console.print(f"\n[bold cyan]Webcam Color Transfer[/bold cyan]")
+    console.print(f"Source: {source}")
+    console.print(f"Camera ID: {camera}")
+    console.print(f"Algorithm: {algorithm.value}\n")
+    console.print("[yellow]Press 'q' to quit, 's' to save frame, 'r' to record, 'p' to pause[/yellow]\n")
+
+    config = TransferConfig(
+        algorithm=TransferAlgorithm(algorithm.value),
+        blend_factor=blend
+    )
+
+    processor = WebcamProcessor()
+
+    try:
+        processor.start_preview(
+            source_image=str(source),
+            camera_id=camera,
+            config=config,
+            show_fps=fps,
+            record_output=str(record) if record else None,
+            frame_skip=skip_frames
+        )
+
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Interrupted by user[/yellow]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1)
+
+
+@app.command()
+def palette(
+    image: Path = typer.Argument(
+        ...,
+        help="Path to input image",
+        exists=True
+    ),
+    output: Path = typer.Option(
+        None,
+        "--output", "-o",
+        help="Path to save palette visualization"
+    ),
+    n_colors: int = typer.Option(
+        5,
+        "--colors", "-n",
+        min=2,
+        max=20,
+        help="Number of colors to extract"
+    ),
+    method: str = typer.Option(
+        "kmeans",
+        "--method", "-m",
+        help="Extraction method (kmeans, histogram)"
+    ),
+    export_json: bool = typer.Option(
+        False,
+        "--json",
+        help="Export palette to JSON file"
+    )
+):
+    """Extract dominant color palette from an image."""
+    from ..advanced_processing import PaletteExtractor
+
+    if output is None:
+        output = image.parent / f"{image.stem}_palette.png"
+
+    console.print(f"\n[bold cyan]Color Palette Extraction[/bold cyan]")
+    console.print(f"Input: {image}")
+    console.print(f"Colors: {n_colors}")
+    console.print(f"Method: {method}\n")
+
+    extractor = PaletteExtractor()
+
+    try:
+        with console.status("[bold green]Extracting palette..."):
+            colors = extractor.extract_palette(
+                image_path=str(image),
+                n_colors=n_colors,
+                method=method
+            )
+
+        # Visualize
+        extractor.visualize_palette(colors, str(output))
+
+        console.print(f"[bold green]✓ Palette extracted![/bold green]\n")
+        console.print(f"Colors (RGB):")
+        for i, color in enumerate(colors, 1):
+            hex_color = "#{:02x}{:02x}{:02x}".format(*color)
+            console.print(f"  {i}. {color} → {hex_color}")
+
+        console.print(f"\nVisualization saved: {output}")
+
+        # Export JSON if requested
+        if export_json:
+            json_path = output.parent / f"{output.stem}.json"
+            extractor.export_palette_json(colors, str(json_path), name=image.stem)
+            console.print(f"JSON exported: {json_path}\n")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1)
+
+
+@app.command()
+def multi_blend(
+    sources: list[Path] = typer.Argument(
+        ...,
+        help="Paths to source images (multiple allowed)"
+    ),
+    target: Path = typer.Argument(
+        ...,
+        help="Path to target image",
+        exists=True
+    ),
+    output: Path = typer.Option(
+        None,
+        "--output", "-o",
+        help="Path to save result"
+    ),
+    algorithm: AlgorithmChoice = typer.Option(
+        AlgorithmChoice.reinhard_lab,
+        "--algo", "-a",
+        help="Color transfer algorithm"
+    ),
+    mode: str = typer.Option(
+        "weighted",
+        "--mode", "-m",
+        help="Blend mode (weighted, mean, median, max, min)"
+    ),
+    weights: Optional[str] = typer.Option(
+        None,
+        "--weights", "-w",
+        help="Comma-separated weights (e.g., '0.5,0.3,0.2')"
+    )
+):
+    """Blend color transfer from multiple source images."""
+    from ..advanced_processing import MultiBlender
+
+    if output is None:
+        output = target.parent / f"{target.stem}_multiblend.png"
+
+    console.print(f"\n[bold cyan]Multi-Image Blending[/bold cyan]")
+    console.print(f"Sources: {len(sources)}")
+    for i, src in enumerate(sources, 1):
+        console.print(f"  {i}. {src}")
+    console.print(f"Target: {target}")
+    console.print(f"Mode: {mode}\n")
+
+    # Parse weights
+    weight_list = None
+    if weights:
+        try:
+            weight_list = [float(w.strip()) for w in weights.split(',')]
+            if len(weight_list) != len(sources):
+                console.print("[red]Error: Number of weights must match number of sources[/red]")
+                raise typer.Exit(1)
+        except ValueError:
+            console.print("[red]Error: Invalid weight format[/red]")
+            raise typer.Exit(1)
+
+    config = TransferConfig(algorithm=TransferAlgorithm(algorithm.value))
+
+    blender = MultiBlender()
+
+    try:
+        with console.status("[bold green]Blending..."):
+            result = blender.blend_transfer(
+                sources=[str(s) for s in sources],
+                target=str(target),
+                weights=weight_list,
+                config=config,
+                blend_mode=mode
+            )
+
+        # Save result
+        import cv2
+        cv2.imwrite(str(output), result)
+
+        console.print(f"[bold green]✓ Multi-blend complete![/bold green]")
+        console.print(f"Output: {output}\n")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(1)
