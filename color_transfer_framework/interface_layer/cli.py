@@ -26,6 +26,7 @@ from ..optimizer_engine import OptimizerEngine
 from ..diagnostics_visualizer import DiagnosticsVisualizer
 from .orchestrator import TransferOrchestrator
 from .config_loader import ConfigLoader, create_example_recipes
+from ..security.input_validator import InputValidator, ValidationError
 
 # Initialize CLI app
 app = typer.Typer(
@@ -126,6 +127,42 @@ def transfer(
         color-transfer source.jpg target.jpg -m mask.png
     """
     try:
+        # Validate input files (Phase 13: Input Validation)
+        validator = InputValidator(
+            max_file_size=100 * 1024 * 1024,  # 100 MB
+            max_dimension=50000,
+            max_pixels=100_000_000
+        )
+
+        console.print("[cyan]Validating input files...[/cyan]")
+
+        # Validate source image
+        source_result = validator.validate(str(source), check_content=True)
+        if not source_result.valid:
+            console.print(f"[bold red]✗ Source image validation failed:[/bold red]")
+            for error in source_result.errors:
+                console.print(f"  - {error}")
+            raise typer.Exit(code=1)
+
+        # Validate target image
+        target_result = validator.validate(str(target), check_content=True)
+        if not target_result.valid:
+            console.print(f"[bold red]✗ Target image validation failed:[/bold red]")
+            for error in target_result.errors:
+                console.print(f"  - {error}")
+            raise typer.Exit(code=1)
+
+        # Validate mask if provided
+        if mask:
+            mask_result = validator.validate(str(mask), check_content=True)
+            if not mask_result.valid:
+                console.print(f"[bold red]✗ Mask image validation failed:[/bold red]")
+                for error in mask_result.errors:
+                    console.print(f"  - {error}")
+                raise typer.Exit(code=1)
+
+        console.print("[bold green]✓ All input files validated successfully[/bold green]")
+
         # Determine output path
         if output is None:
             output = target.parent / f"{target.stem}_transferred{target.suffix}"

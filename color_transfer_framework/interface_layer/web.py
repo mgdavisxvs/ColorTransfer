@@ -8,6 +8,10 @@ Routes:
 - GET /: Main page with upload form
 - POST /transfer: Process transfer request
 - GET /download/<filename>: Download result
+- GET /health/live: Liveness probe (Kubernetes-compatible)
+- GET /health/ready: Readiness probe (Kubernetes-compatible)
+- GET /health: Full health status
+- GET /metrics: Performance metrics
 """
 
 from flask import Flask, render_template_string, request, send_file, jsonify, session
@@ -18,10 +22,20 @@ import uuid
 from pathlib import Path
 import cv2
 import numpy as np
+import logging
 
 from .orchestrator import TransferOrchestrator
 from ..transfer_engine import TransferConfig, TransferAlgorithm
 from .. import __version__
+
+# Import middleware (Phase 13)
+from ..middleware import create_flask_middleware
+from ..security.health_checker import (
+    create_disk_space_check,
+    create_memory_check
+)
+
+logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -31,6 +45,21 @@ app.config['UPLOAD_FOLDER'] = tempfile.mkdtemp()
 
 # Initialize orchestrator
 orchestrator = TransferOrchestrator()
+
+# Initialize middleware (Phase 13: Security & Operations)
+security_middleware, monitoring_middleware = create_flask_middleware(
+    app,
+    enable_rate_limiting=True,
+    enable_metrics=True
+)
+
+# Add dependency checks to health checker
+monitoring_middleware.health_checker.add_dependency_check(
+    create_disk_space_check(min_free_gb=1.0)
+)
+monitoring_middleware.health_checker.add_dependency_check(
+    create_memory_check(max_usage_percent=90.0)
+)
 
 # Allowed file extensions
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'bmp', 'tiff'}
@@ -548,6 +577,71 @@ def download(filename):
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# Health Check Endpoints (Phase 13: Kubernetes-compatible)
+
+@app.route('/health/live')
+def health_liveness():
+    """
+    Liveness probe (Kubernetes-compatible).
+
+    Checks if the process is alive and responsive.
+    Returns 200 if healthy, 503 if unhealthy.
+    """
+    result = monitoring_middleware.check_liveness()
+
+    if result.status.value == "healthy":
+        return jsonify(result.to_dict()), 200
+    else:
+        return jsonify(result.to_dict()), 503
+
+
+@app.route('/health/ready')
+def health_readiness():
+    """
+    Readiness probe (Kubernetes-compatible).
+
+    Checks if the service can handle requests (dependencies available).
+    Returns 200 if ready, 503 if not ready.
+    """
+    result = monitoring_middleware.check_readiness()
+
+    if result.status.value == "healthy":
+        return jsonify(result.to_dict()), 200
+    elif result.status.value == "degraded":
+        return jsonify(result.to_dict()), 429  # Partial capacity
+    else:
+        return jsonify(result.to_dict()), 503
+
+
+@app.route('/health')
+def health_full():
+    """
+    Full health status with all checks and metrics.
+
+    Returns comprehensive health information including:
+    - Liveness status
+    - Readiness status
+    - Dependency health
+    - Uptime metrics
+    - Success rate
+    """
+    return jsonify(monitoring_middleware.get_health_status())
+
+
+@app.route('/metrics')
+def metrics():
+    """
+    Prometheus-compatible metrics endpoint.
+
+    Returns performance metrics including:
+    - Request latency percentiles (p50, p95, p99)
+    - Throughput (requests per second)
+    - Error rate
+    - Status code distribution
+    """
+    return jsonify(monitoring_middleware.get_metrics())
 
 
 def create_app():
