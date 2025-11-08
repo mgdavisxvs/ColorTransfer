@@ -25,6 +25,7 @@ from ..transfer_engine import TransferEngine, TransferConfig, TransferAlgorithm
 from ..optimizer_engine import OptimizerEngine
 from ..diagnostics_visualizer import DiagnosticsVisualizer
 from .orchestrator import TransferOrchestrator
+from .config_loader import ConfigLoader, create_example_recipes
 
 # Initialize CLI app
 app = typer.Typer(
@@ -99,6 +100,12 @@ def transfer(
         False,
         "--preserve-luminance",
         help="Preserve original luminance (LCH algorithm only)"
+    ),
+    config_file: Optional[Path] = typer.Option(
+        None,
+        "--config", "-c",
+        help="Load configuration from YAML/JSON file (overrides other options)",
+        exists=True
     )
 ):
     """
@@ -124,11 +131,17 @@ def transfer(
             output = target.parent / f"{target.stem}_transferred{target.suffix}"
 
         # Build configuration
-        config = TransferConfig(
-            algorithm=TransferAlgorithm(algorithm.value),
-            blend_factor=blend,
-            preserve_luminance=preserve_luminance
-        )
+        if config_file:
+            # Load from file
+            console.print(f"[cyan]Loading configuration from:[/cyan] {config_file}")
+            config = ConfigLoader.load_config(str(config_file))
+        else:
+            # Use command-line options
+            config = TransferConfig(
+                algorithm=TransferAlgorithm(algorithm.value),
+                blend_factor=blend,
+                preserve_luminance=preserve_luminance
+            )
 
         # Create orchestrator
         orchestrator = TransferOrchestrator()
@@ -253,6 +266,144 @@ def info():
 
     console.print(modules_table)
     console.print()
+
+
+@app.command()
+def recipes():
+    """List available configuration recipes."""
+    console.print("\n[bold cyan]Available Recipes[/bold cyan]\n")
+
+    recipe_list = ConfigLoader.list_recipes()
+
+    if not recipe_list:
+        console.print("[yellow]No recipes found.[/yellow]")
+        console.print(f"Run [cyan]color-transfer create-examples[/cyan] to create example recipes.")
+        console.print(f"Recipe directory: {ConfigLoader.get_default_recipes_dir()}\n")
+        return
+
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Name", style="cyan")
+    table.add_column("Description")
+    table.add_column("Tags", style="dim")
+
+    for recipe in recipe_list:
+        tags = ', '.join(recipe['tags']) if recipe['tags'] else '-'
+        table.add_row(recipe['name'], recipe['description'], tags)
+
+    console.print(table)
+    console.print(f"\n[dim]Recipe directory: {ConfigLoader.get_default_recipes_dir()}[/dim]")
+    console.print(f"[dim]Use with: --config <recipe.yaml>[/dim]\n")
+
+
+@app.command()
+def create_examples():
+    """Create example recipe files."""
+    console.print("\n[bold cyan]Creating Example Recipes[/bold cyan]\n")
+
+    try:
+        create_example_recipes()
+        console.print(f"[green]✓[/green] Example recipes created in:")
+        console.print(f"  {ConfigLoader.get_default_recipes_dir()}\n")
+
+        console.print("Available examples:")
+        console.print("  • warm_sunset.yaml - Warm, golden sunset tones")
+        console.print("  • cool_blue.yaml - Cool, blue cinematic tones")
+        console.print("  • high_contrast.yaml - Dramatic histogram matching")
+        console.print("  • subtle_enhancement.yaml - Gentle color correction\n")
+
+        console.print("Use with:")
+        console.print("  [cyan]color-transfer source.jpg target.jpg --config warm_sunset.yaml[/cyan]\n")
+
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {str(e)}", style="red")
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def save_config(
+    name: str = typer.Argument(..., help="Name for the configuration"),
+    output: Path = typer.Option(
+        None,
+        "--output", "-o",
+        help="Output file path (default: ~/.color_transfer/recipes/<name>.yaml)"
+    ),
+    algorithm: AlgorithmChoice = typer.Option(
+        AlgorithmChoice.reinhard_lab,
+        "--algo", "-a",
+        help="Algorithm to use"
+    ),
+    blend: float = typer.Option(
+        1.0,
+        "--blend", "-b",
+        min=0.0,
+        max=1.0,
+        help="Blend factor"
+    ),
+    preserve_luminance: bool = typer.Option(
+        False,
+        "--preserve-luminance",
+        help="Preserve luminance"
+    ),
+    description: str = typer.Option(
+        "",
+        "--desc", "-d",
+        help="Description of the configuration"
+    ),
+    tags: str = typer.Option(
+        "",
+        "--tags", "-t",
+        help="Comma-separated tags"
+    )
+):
+    """
+    Save a configuration as a reusable recipe.
+
+    Examples:
+
+        # Save a warm sunset configuration
+        color-transfer save-config "Warm Sunset" \\
+            --algo reinhard_lch --blend 0.7 \\
+            --desc "Golden hour warm tones" \\
+            --tags warm,sunset,golden
+    """
+    try:
+        # Build config
+        config = TransferConfig(
+            algorithm=TransferAlgorithm(algorithm.value),
+            blend_factor=blend,
+            preserve_luminance=preserve_luminance
+        )
+
+        # Determine output path
+        if output is None:
+            recipes_dir = ConfigLoader.get_default_recipes_dir()
+            output = recipes_dir / f"{name.lower().replace(' ', '_')}.yaml"
+
+        # Parse tags
+        tag_list = [t.strip() for t in tags.split(',') if t.strip()] if tags else None
+
+        # Create recipe
+        from .config_loader import TransferRecipe
+        from datetime import datetime
+
+        recipe = TransferRecipe(
+            name=name,
+            description=description or f"Configuration: {name}",
+            config=config.to_dict(),
+            created_at=datetime.utcnow().isoformat(),
+            tags=tag_list
+        )
+
+        # Save
+        ConfigLoader.save_config(config, str(output), recipe=recipe)
+
+        console.print(f"[green]✓[/green] Configuration saved to: {output}")
+        console.print(f"\nUse with:")
+        console.print(f"  [cyan]color-transfer source.jpg target.jpg --config {output}[/cyan]\n")
+
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] {str(e)}", style="red")
+        raise typer.Exit(code=1)
 
 
 @app.callback()
