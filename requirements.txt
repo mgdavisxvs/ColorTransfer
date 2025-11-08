@@ -29,6 +29,10 @@ seaborn>=0.11.0
 # Required for advanced processing (palette extraction)
 scikit-learn>=0.24.0
 
+# Performance & Scalability (Phase 11)
+celery[redis]>=5.3.0  # Distributed task processing with RabbitMQ/Redis backend
+redis>=5.0.0  # Distributed caching layer
+
 # Optional (for API server)
 # fastapi>=0.68.0
 # uvicorn>=0.15.0
