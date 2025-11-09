@@ -38,6 +38,13 @@ try:
 except ImportError:
     ANALYZER_AVAILABLE = False
 
+# Tom Sawyer Method (Phase 17 Prototype)
+try:
+    from ..tom_sawyer import TomSawyerProcessor, TomSawyerMetrics
+    TOM_SAWYER_AVAILABLE = True
+except ImportError:
+    TOM_SAWYER_AVAILABLE = False
+
 
 @dataclass
 class OrchestrationResult:
@@ -50,6 +57,7 @@ class OrchestrationResult:
     result_hash: str
     config: TransferConfig
     visualization_paths: Optional[Dict[str, str]] = None
+    tom_sawyer_metrics: Optional[Any] = None  # TomSawyerMetrics if available
 
 
 class TransferOrchestrator:
@@ -232,6 +240,165 @@ class TransferOrchestrator:
             result_hash=result_hash,
             config=config,
             visualization_paths=visualization_paths
+        )
+
+    def transfer_tom_sawyer(
+        self,
+        source_image: np.ndarray,
+        target_image: np.ndarray,
+        config: Optional[TransferConfig] = None,
+        mask: Optional[np.ndarray] = None,
+        enable_gpu: bool = False,
+        num_workers: int = 10,
+        variation_range: tuple = (0.85, 1.15),
+        enable_parallel: bool = True,
+        interface_type: str = "DIRECT",
+        progress_callback: Optional[Callable[[str, int], None]] = None
+    ) -> OrchestrationResult:
+        """
+        Perform color transfer using Tom Sawyer parallel processing method.
+
+        This is a PROTOTYPE implementation of the Tom Sawyer Method, which uses
+        multiple workers with parameter variations to achieve consensus results.
+
+        Algorithm:
+        1. Generate 10 parameter variations (blend factors 0.85 to 1.15)
+        2. Execute workers in parallel (or sequentially)
+        3. Aggregate results through weighted consensus
+        4. Return best result with quality metrics
+
+        Parameters:
+        ----------
+        source_image : np.ndarray
+            Source image (color palette donor)
+        target_image : np.ndarray
+            Target image (to be transformed)
+        config : TransferConfig, optional
+            Base transfer configuration (will be varied)
+        mask : np.ndarray, optional
+            Mask for selective transfer
+        enable_gpu : bool
+            Whether to use GPU acceleration
+        num_workers : int
+            Number of workers (default: 10)
+        variation_range : tuple
+            (min, max) variation factors (default: 0.85 to 1.15)
+        enable_parallel : bool
+            Use parallel execution (default: True)
+
+        Returns:
+        -------
+        OrchestrationResult
+            Complete results including consensus image and Tom Sawyer metrics
+
+        Raises:
+        ------
+        ImportError
+            If Tom Sawyer module is not available
+        """
+        if not TOM_SAWYER_AVAILABLE:
+            raise ImportError(
+                "Tom Sawyer Method not available. "
+                "This is a prototype feature that may need additional dependencies."
+            )
+
+        # Generate unique run ID
+        run_id = str(uuid.uuid4())
+
+        # Helper for progress updates
+        def emit_progress(status: str, percent: int):
+            if progress_callback:
+                try:
+                    progress_callback(status, percent)
+                except Exception:
+                    pass
+
+        emit_progress("initializing_tom_sawyer", 0)
+
+        # Use default config if not provided
+        if config is None:
+            config = TransferConfig()
+
+        # Compute image hashes
+        source_hash = self._compute_hash(source_image)
+        target_hash = self._compute_hash(target_image)
+
+        emit_progress("creating_workers", 10)
+
+        # Initialize Tom Sawyer processor
+        tom_sawyer = TomSawyerProcessor(
+            num_workers=num_workers,
+            variation_range=variation_range,
+            enable_outlier_rejection=True,
+            outlier_threshold=3.0,
+            max_parallel_workers=4
+        )
+
+        emit_progress("processing_workers", 30)
+
+        # Define transfer function for workers
+        def transfer_func(src, tgt, cfg):
+            return self.transfer_engine.transfer(src, tgt, cfg, mask)
+
+        # Execute Tom Sawyer processing
+        start_time = time.perf_counter()
+        consensus_result, tom_sawyer_metrics = tom_sawyer.process(
+            source_image,
+            target_image,
+            config,
+            transfer_func,
+            enable_parallel=enable_parallel
+        )
+        execution_time = (time.perf_counter() - start_time) * 1000  # ms
+
+        emit_progress("finalizing_result", 90)
+
+        # Compute result hash
+        result_hash = self._compute_hash(consensus_result)
+
+        # Create standard metrics
+        metrics = PerformanceMetrics(
+            execution_time_ms=execution_time,
+            memory_used_mb=tom_sawyer_metrics.memory_used_mb,
+            throughput_images_per_sec=1000.0 / execution_time if execution_time > 0 else 0.0
+        )
+
+        # Log to persistence layer
+        if self.enable_logging:
+            try:
+                self.persistence_logger.log_transfer(
+                    run_id=run_id,
+                    source_hash=source_hash,
+                    target_hash=target_hash,
+                    result_hash=result_hash,
+                    algorithm=config.algorithm.value,
+                    config=config.to_dict(),
+                    metrics={
+                        'execution_time_ms': metrics.execution_time_ms,
+                        'memory_used_mb': metrics.memory_used_mb,
+                        'throughput_images_per_sec': metrics.throughput_images_per_sec,
+                        'tom_sawyer_workers': tom_sawyer_metrics.num_workers,
+                        'tom_sawyer_confidence': tom_sawyer_metrics.consensus_confidence,
+                        'tom_sawyer_outliers': tom_sawyer_metrics.num_outliers,
+                    },
+                    interface_type=interface_type,
+                    success=True
+                )
+            except Exception as e:
+                pass  # Don't fail if logging fails
+
+        emit_progress("complete", 100)
+
+        return OrchestrationResult(
+            result_image=consensus_result,
+            metrics=metrics,
+            run_id=run_id,
+            source_hash=source_hash,
+            target_hash=target_hash,
+            result_hash=result_hash,
+            config=config,
+            visualization_paths=None,  # No diagnostics for Tom Sawyer (prototype)
+            tom_sawyer_metrics=tom_sawyer_metrics
         )
 
     def transfer_from_paths(
