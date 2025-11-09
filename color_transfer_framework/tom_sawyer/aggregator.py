@@ -19,25 +19,39 @@ class ConsensusAggregator:
     """
     Aggregates worker results through weighted consensus.
 
-    Prototype Implementation:
+    Knuth-Graham Enhancement:
     - Weighted average aggregation
-    - Optional z-score outlier rejection
+    - MAD-based outlier rejection (more robust than z-score)
     - No quality-based weight adjustment (will be added in full version)
+
+    Note: MAD (Median Absolute Deviation) is preferred over z-score because
+    it doesn't assume Gaussian distribution and is more robust to outliers.
     """
 
-    def __init__(self, outlier_threshold: float = 3.0, enable_outlier_rejection: bool = True):
+    def __init__(
+        self,
+        outlier_threshold: float = 3.0,
+        enable_outlier_rejection: bool = True,
+        use_mad: bool = True
+    ):
         """
         Initialize consensus aggregator.
 
         Args:
-            outlier_threshold: Z-score threshold for outlier rejection (default: 3.0)
+            outlier_threshold: Threshold for outlier rejection (default: 3.0)
+                - For z-score: standard deviations from mean
+                - For MAD: MAD units from median (more robust)
             enable_outlier_rejection: Enable outlier detection (default: True)
+            use_mad: Use MAD-based detection instead of z-score (default: True)
+                Recommended by Knuth-Graham analysis for robustness
         """
         self.outlier_threshold = outlier_threshold
         self.enable_outlier_rejection = enable_outlier_rejection
+        self.use_mad = use_mad
         logger.info(
             f"ConsensusAggregator initialized "
-            f"(outlier_rejection={enable_outlier_rejection}, threshold={outlier_threshold})"
+            f"(outlier_rejection={enable_outlier_rejection}, "
+            f"threshold={outlier_threshold}, method={'MAD' if use_mad else 'z-score'})"
         )
 
     def aggregate(
@@ -47,9 +61,13 @@ class ConsensusAggregator:
         Aggregate worker results using weighted consensus.
 
         Algorithm:
-        1. Optional: Detect and remove outliers using z-score
+        1. Optional: Detect and remove outliers using MAD or z-score
         2. Compute weighted average
         3. Return consensus result with metadata
+
+        Complexity:
+            Time: O(n × H × W × C) where n=num_workers
+            Space: O(n × H × W × C) for stacking results
 
         Args:
             results: List of worker results (each shape: H x W x C)
@@ -103,12 +121,19 @@ class ConsensusAggregator:
 
     def _detect_outliers(self, results_stack: np.ndarray) -> np.ndarray:
         """
-        Detect outlier workers using z-score method.
+        Detect outlier workers using MAD or z-score method.
 
-        Method:
+        MAD Method (Recommended - Knuth-Graham Analysis):
+        1. Compute mean absolute difference for each worker vs median
+        2. Calculate MAD (Median Absolute Deviation) of deviations
+        3. Mark workers with deviation > threshold × MAD as outliers
+        More robust to non-Gaussian distributions
+
+        Z-Score Method (Legacy):
         1. Compute mean absolute difference for each worker vs median
         2. Calculate z-scores
         3. Mark workers with |z| > threshold as outliers
+        Assumes Gaussian distribution
 
         Args:
             results_stack: Stacked results (num_workers, H, W, C)
@@ -129,13 +154,64 @@ class ConsensusAggregator:
 
         deviations = np.array(deviations)
 
-        # Compute z-scores
+        if self.use_mad:
+            # MAD-based detection (Knuth-Graham recommendation)
+            outlier_mask = self._detect_outliers_mad(deviations)
+        else:
+            # Z-score detection (legacy)
+            outlier_mask = self._detect_outliers_zscore(deviations)
+
+        return outlier_mask
+
+    def _detect_outliers_mad(self, deviations: np.ndarray) -> np.ndarray:
+        """
+        Detect outliers using Median Absolute Deviation (MAD).
+
+        More robust than z-score for non-Gaussian distributions.
+        Recommended by Knuth-Graham analysis.
+
+        Formula:
+            MAD = median(|deviations - median(deviations)|)
+            outlier if |deviation - median| > threshold × MAD
+
+        Args:
+            deviations: Array of deviation values
+
+        Returns:
+            Boolean mask (True = outlier)
+        """
+        median = np.median(deviations)
+        mad = np.median(np.abs(deviations - median))
+
+        if mad < 1e-6:
+            # All deviations are very similar, no outliers
+            return np.zeros(len(deviations), dtype=bool)
+
+        # Modified z-score using MAD
+        # Scale factor 1.4826 makes MAD consistent with std for normal distribution
+        modified_z_scores = 0.6745 * (deviations - median) / mad
+        outlier_mask = np.abs(modified_z_scores) > self.outlier_threshold
+
+        return outlier_mask
+
+    def _detect_outliers_zscore(self, deviations: np.ndarray) -> np.ndarray:
+        """
+        Detect outliers using z-score method (legacy).
+
+        Less robust than MAD for non-Gaussian distributions.
+
+        Args:
+            deviations: Array of deviation values
+
+        Returns:
+            Boolean mask (True = outlier)
+        """
         if deviations.std() > 1e-6:  # Avoid division by zero
             z_scores = np.abs(stats.zscore(deviations))
             outlier_mask = z_scores > self.outlier_threshold
         else:
             # All results are very similar, no outliers
-            outlier_mask = np.zeros(num_workers, dtype=bool)
+            outlier_mask = np.zeros(len(deviations), dtype=bool)
 
         return outlier_mask
 

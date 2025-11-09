@@ -60,6 +60,10 @@ class VariationController:
         - Worker 2: blend=1.10, epsilon=1e-9.67, preserve=False
         - Worker 3: blend=1.30, epsilon=1e-9, preserve=True
 
+        Complexity:
+            Time: O(n) where n=num_workers
+            Space: O(n) for storing configurations
+
         Args:
             base_config: Base transfer configuration
             num_workers: Number of workers
