@@ -293,7 +293,7 @@ class TransferOrchestrator:
         mask: Optional[np.ndarray] = None,
         enable_gpu: bool = False,
         num_workers: Optional[int] = None,  # Changed from int = 10 to Optional[int] = None
-        variation_range: tuple = (0.85, 1.15),
+        variation_range: tuple = (0.7, 1.3),  # Phase 18.2: Wider range for better diversity
         enable_parallel: bool = True,
         interface_type: str = "DIRECT",
         progress_callback: Optional[Callable[[str, int], None]] = None
@@ -301,21 +301,21 @@ class TransferOrchestrator:
         """
         Perform color transfer using Tom Sawyer parallel processing method.
 
-        This is an OPTIMIZED implementation of the Tom Sawyer Method (Phase 17.2),
+        This is an OPTIMIZED implementation of the Tom Sawyer Method (Phase 18.2),
         which uses multiple workers with parameter variations to achieve consensus
-        results with adaptive worker selection based on image size.
+        results with adaptive worker selection and wider parameter diversity.
 
         Algorithm:
         1. Auto-select optimal workers based on image size (or use specified)
-        2. Generate parameter variations (blend factors 0.85 to 1.15 by default)
+        2. Generate parameter variations (blend factors 0.7 to 1.3 by default)
         3. Execute workers in parallel (4 parallel threads)
         4. Aggregate results through weighted consensus
         5. Return best result with quality metrics
 
-        Performance (Phase 17.2 Optimized):
+        Performance (Phase 18.2):
         - Small images (512x512): ~35% overhead (production-ready)
         - Medium images (1024x1024): ~120% overhead (acceptable)
-        - Quality: 31+ dB PSNR (above threshold)
+        - Quality: 31+ dB PSNR (wider range for better consensus)
 
         Parameters:
         ----------
@@ -333,7 +333,7 @@ class TransferOrchestrator:
             Number of workers (default: None = auto-select based on image size)
             Auto-selection: 4 for <300k pixels, 6 for <1M pixels, 8 for >=1M pixels
         variation_range : tuple
-            (min, max) variation factors (default: 0.85 to 1.15)
+            (min, max) variation factors (default: 0.7 to 1.3 for better diversity)
         enable_parallel : bool
             Use parallel execution (default: True)
 
