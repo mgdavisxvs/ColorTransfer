@@ -1,0 +1,27 @@
+{
+  "algorithm": "reinhard_lab",
+  "image_size": "512x512",
+  "num_runs": 3,
+  "standard": {
+    "time_avg_ms": 134.6383866666656,
+    "time_std_ms": 67.95616595131153,
+    "memory_avg_mb": 495.23828125
+  },
+  "tom_sawyer": {
+    "time_avg_ms": 621.9770213333126,
+    "time_std_ms": 6.095817294432247,
+    "memory_avg_mb": 13.510640780131022,
+    "confidence_avg": 0.012908481805385645,
+    "outliers_avg": 0.0
+  },
+  "overhead": {
+    "time_pct": 361.96113659114764,
+    "memory_pct": -97.27189086715396
+  },
+  "quality": {
+    "mse": 34.25562686011905,
+    "psnr": 32.78348441577107,
+    "ssim": 0.19852224053633233,
+    "similarity_pct": 99.94731929740851
+  }
+}

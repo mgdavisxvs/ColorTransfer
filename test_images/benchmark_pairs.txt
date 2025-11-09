@@ -1,0 +1,8 @@
+# Source,Target pairs for benchmarking
+# Format: source_image,target_image
+
+warm_sunset_gradient_512x512.jpg,cool_ocean_gradient_512x512.jpg
+cool_ocean_radial_512x512.jpg,vibrant_spring_radial_512x512.jpg
+neutral_gray_pattern_512x512.jpg,warm_sunset_pattern_512x512.jpg
+vibrant_spring_natural_512x512.jpg,cool_ocean_natural_512x512.jpg
+warm_sunset_gradient_1024x1024.jpg,neutral_gray_gradient_1024x1024.jpg

@@ -1,0 +1,200 @@
+{
+  "summary": {
+    "total_benchmarks": 5,
+    "successful": 5,
+    "failed": 0
+  },
+  "aggregate_statistics": {
+    "time_overhead": {
+      "mean": 378.62948203597915,
+      "std": 61.7172871759473,
+      "min": 341.1105364468251,
+      "max": 501.16563099340283
+    },
+    "consensus_confidence": {
+      "mean": 1.5418375044899393,
+      "std": 0.20676463096004358,
+      "min": 1.2908481805385645,
+      "max": 1.8351476071414088
+    },
+    "psnr": {
+      "mean": 33.52825244157979,
+      "std": 0.6001130224141915,
+      "min": 32.78348441577107,
+      "max": 34.35135951997141
+    },
+    "ssim": {
+      "mean": 0.2948148965638378,
+      "std": 0.11670172611648805,
+      "min": 0.17045284331745603,
+      "max": 0.4799392084338166
+    }
+  },
+  "individual_results": [
+    {
+      "source": "warm_sunset_gradient_512x512.jpg",
+      "target": "cool_ocean_gradient_512x512.jpg",
+      "output_dir": "benchmark_results/warm_sunset_gradient_512x512_to_cool_ocean_gradient_512x512",
+      "success": true,
+      "data": {
+        "algorithm": "reinhard_lab",
+        "image_size": "512x512",
+        "num_runs": 3,
+        "standard": {
+          "time_avg_ms": 134.6383866666656,
+          "time_std_ms": 67.95616595131153,
+          "memory_avg_mb": 495.23828125
+        },
+        "tom_sawyer": {
+          "time_avg_ms": 621.9770213333126,
+          "time_std_ms": 6.095817294432247,
+          "memory_avg_mb": 13.510640780131022,
+          "confidence_avg": 0.012908481805385645,
+          "outliers_avg": 0.0
+        },
+        "overhead": {
+          "time_pct": 361.96113659114764,
+          "memory_pct": -97.27189086715396
+        },
+        "quality": {
+          "mse": 34.25562686011905,
+          "psnr": 32.78348441577107,
+          "ssim": 0.19852224053633233,
+          "similarity_pct": 99.94731929740851
+        }
+      }
+    },
+    {
+      "source": "cool_ocean_radial_512x512.jpg",
+      "target": "vibrant_spring_radial_512x512.jpg",
+      "output_dir": "benchmark_results/cool_ocean_radial_512x512_to_vibrant_spring_radial_512x512",
+      "success": true,
+      "data": {
+        "algorithm": "reinhard_lab",
+        "image_size": "512x512",
+        "num_runs": 3,
+        "standard": {
+          "time_avg_ms": 135.21130299998654,
+          "time_std_ms": 64.57514361574403,
+          "memory_avg_mb": 495.4765625
+        },
+        "tom_sawyer": {
+          "time_avg_ms": 596.4313039999828,
+          "time_std_ms": 20.991171367967794,
+          "memory_avg_mb": 13.510723114013672,
+          "confidence_avg": 0.013284957278483979,
+          "outliers_avg": 0.0
+        },
+        "overhead": {
+          "time_pct": 341.1105364468251,
+          "memory_pct": -97.27318623390715
+        },
+        "quality": {
+          "mse": 33.2867678720124,
+          "psnr": 32.90808733434182,
+          "ssim": 0.17045284331745603,
+          "similarity_pct": 99.94880927662896
+        }
+      }
+    },
+    {
+      "source": "neutral_gray_pattern_512x512.jpg",
+      "target": "warm_sunset_pattern_512x512.jpg",
+      "output_dir": "benchmark_results/neutral_gray_pattern_512x512_to_warm_sunset_pattern_512x512",
+      "success": true,
+      "data": {
+        "algorithm": "reinhard_lab",
+        "image_size": "512x512",
+        "num_runs": 3,
+        "standard": {
+          "time_avg_ms": 132.1948686666777,
+          "time_std_ms": 64.50504326282362,
+          "memory_avg_mb": 495.57421875
+        },
+        "tom_sawyer": {
+          "time_avg_ms": 590.3073483333401,
+          "time_std_ms": 26.866900473773352,
+          "memory_avg_mb": 13.510960578918457,
+          "confidence_avg": 0.015794272277145523,
+          "outliers_avg": 0.0
+        },
+        "overhead": {
+          "time_pct": 346.5433146439054,
+          "memory_pct": -97.27367565387128
+        },
+        "quality": {
+          "mse": 27.975885439892238,
+          "psnr": 33.66296519981238,
+          "ssim": 0.4799392084338166,
+          "similarity_pct": 99.95697672366029
+        }
+      }
+    },
+    {
+      "source": "vibrant_spring_natural_512x512.jpg",
+      "target": "cool_ocean_natural_512x512.jpg",
+      "output_dir": "benchmark_results/vibrant_spring_natural_512x512_to_cool_ocean_natural_512x512",
+      "success": true,
+      "data": {
+        "algorithm": "reinhard_lab",
+        "image_size": "512x512",
+        "num_runs": 3,
+        "standard": {
+          "time_avg_ms": 134.51109066666808,
+          "time_std_ms": 68.43858308319591,
+          "memory_avg_mb": 495.66796875
+        },
+        "tom_sawyer": {
+          "time_avg_ms": 595.0323960000029,
+          "time_std_ms": 36.830824246060374,
+          "memory_avg_mb": 13.510655085245768,
+          "confidence_avg": 0.01835147607141409,
+          "outliers_avg": 0.0
+        },
+        "overhead": {
+          "time_pct": 342.36679150461475,
+          "memory_pct": -97.27425294006437
+        },
+        "quality": {
+          "mse": 23.875056547372512,
+          "psnr": 34.35135951997141,
+          "ssim": 0.37760337219482165,
+          "similarity_pct": 99.9632832655942
+        }
+      }
+    },
+    {
+      "source": "warm_sunset_gradient_1024x1024.jpg",
+      "target": "neutral_gray_gradient_1024x1024.jpg",
+      "output_dir": "benchmark_results/warm_sunset_gradient_1024x1024_to_neutral_gray_gradient_1024x1024",
+      "success": true,
+      "data": {
+        "algorithm": "reinhard_lab",
+        "image_size": "1024x1024",
+        "num_runs": 3,
+        "standard": {
+          "time_avg_ms": 433.2201209999956,
+          "time_std_ms": 88.06843096198072,
+          "memory_avg_mb": 547.98828125
+        },
+        "tom_sawyer": {
+          "time_avg_ms": 2604.3704740000067,
+          "time_std_ms": 134.97792495875808,
+          "memory_avg_mb": 54.01086902618408,
+          "confidence_avg": 0.016752687792067726,
+          "outliers_avg": 0.0
+        },
+        "overhead": {
+          "time_pct": 501.16563099340283,
+          "memory_pct": -90.14379123163337
+        },
+        "quality": {
+          "mse": 26.275064273756414,
+          "psnr": 33.93536573800225,
+          "ssim": 0.24755681833676224,
+          "similarity_pct": 99.95959236559206
+        }
+      }
+    }
+  ]
+}

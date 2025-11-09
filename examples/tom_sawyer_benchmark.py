@@ -54,6 +54,12 @@ def calculate_psnr(img1: np.ndarray, img2: np.ndarray) -> float:
 
 def calculate_ssim(img1: np.ndarray, img2: np.ndarray) -> float:
     """Calculate Structural Similarity Index (simplified version)."""
+    # Ensure images are uint8
+    if img1.dtype != np.uint8:
+        img1 = np.clip(img1, 0, 255).astype(np.uint8)
+    if img2.dtype != np.uint8:
+        img2 = np.clip(img2, 0, 255).astype(np.uint8)
+
     # Convert to grayscale
     gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
     gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
