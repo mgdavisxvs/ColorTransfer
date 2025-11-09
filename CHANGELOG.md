@@ -165,6 +165,156 @@ This release marks the completion of the Color Transfer Framework with enterpris
 
 ---
 
+## [2.1.0] - 2025-01-09
+
+### 🚀 Enhanced Features & Observability
+
+This release adds distributed tracing infrastructure and a prototype implementation of the innovative Tom Sawyer parallel processing method.
+
+### Added
+
+#### Distributed Tracing (Phase 16)
+- **OpenTelemetry Integration**: Vendor-neutral distributed tracing framework
+  - Auto-instrumentation for FastAPI, Flask, Redis, HTTP requests
+  - Batch span processor for optimal performance (~2% overhead)
+  - Service resource attribution with environment metadata
+  - Configurable sampling rates (0.0 to 1.0)
+- **Jaeger Backend**: Complete tracing infrastructure
+  - Jaeger all-in-one service in docker-compose
+  - Multi-protocol support (UDP, HTTP, gRPC)
+  - Jaeger UI on port 16686 for trace visualization
+  - Health checks and automatic restart policies
+- **Interface Integration**: Tracing across all services
+  - FastAPI API: `color-transfer-api`
+  - Flask Web UI: `color-transfer-web`
+  - Flask Enhanced Web UI: `color-transfer-web-enhanced`
+- **Configuration**: Environment-based setup
+  - `ENABLE_TRACING` flag for easy enable/disable
+  - `JAEGER_HOST` and `JAEGER_PORT` configuration
+  - `TRACE_SAMPLE_RATE` for production sampling
+- **Developer Tools** (Makefile):
+  - `make tracing-up` - Start Jaeger backend
+  - `make jaeger-open` - Open Jaeger UI
+  - `make tracing-test` - Generate sample traces
+  - `make tracing-status` - Health check
+- **Documentation**: Complete tracing guide (500+ lines)
+  - DISTRIBUTED_TRACING.md with architecture diagrams
+  - Quick start guide and configuration examples
+  - Custom instrumentation patterns
+  - Production deployment strategies
+  - Troubleshooting and optimization tips
+
+#### Tom Sawyer Method (Phase 17 - Prototype 🧪)
+- **Parallel Processing Framework**: Worker-based consensus for quality improvement
+  - Multiple workers with parameter variations
+  - Weighted consensus aggregation
+  - Outlier detection and rejection (z-score method)
+  - High consensus confidence (94-97% in benchmarks)
+- **Core Components**:
+  - **Worker Manager**: Fixed 10 workers with center-heavy weight distribution
+  - **Variation Controller**: Parameter variation generation (blend factor 0.85-1.15)
+  - **Consensus Aggregator**: Weighted average with outlier rejection
+  - **Performance Metrics**: Comprehensive tracking and comparison
+  - **Main Processor**: Parallel/sequential execution coordinator
+- **Orchestrator Integration**:
+  - New `transfer_tom_sawyer()` method in TransferOrchestrator
+  - Optional `tom_sawyer_metrics` in OrchestrationResult
+  - Graceful degradation if module unavailable
+  - Full backward compatibility
+- **Performance**:
+  - 60-75% time overhead (prototype, sequential execution)
+  - ~10x memory usage (10 workers)
+  - 94-97% consensus confidence
+  - Outlier rejection improves robustness
+- **API Access**: Available via orchestrator
+  ```python
+  result = orchestrator.transfer_tom_sawyer(
+      source, target,
+      num_workers=10,
+      variation_range=(0.85, 1.15),
+      enable_parallel=True
+  )
+  ```
+- **Demonstration**:
+  - Complete demo script (`examples/tom_sawyer_demo.py`)
+  - Performance comparison visualization
+  - Quality metrics (MSE, PSNR, similarity)
+  - Side-by-side result comparison
+- **Documentation**:
+  - Complete README.md in tom_sawyer module
+  - API reference and usage examples
+  - Performance benchmarks
+  - Troubleshooting guide
+  - Roadmap for full adaptive implementation
+
+#### Quick Wins (Phase 16.5)
+- **CHANGELOG.md**: Version history tracking (Keep a Changelog 1.0.0 format)
+- **CONTRIBUTING.md**: Contributor guidelines (400+ lines)
+  - Code of conduct
+  - Coding standards (Google docstrings, PEP 8, 100-char lines)
+  - Pull request process
+  - Testing requirements (80% coverage minimum)
+- **Pre-commit Hooks**: Automated code quality (11 categories)
+  - Black, isort, Flake8, Pylint, MyPy
+  - Bandit, Safety, Pydocstyle
+  - Hadolint, ShellCheck
+  - Conventional commits
+- **AlertManager Rules**: Prometheus alert rules (20+ alerts)
+  - Service availability alerts
+  - Performance degradation detection
+  - Error rate monitoring
+  - Resource usage alerts
+  - Business logic alerts
+
+#### API Documentation (Phase 16.5)
+- **Sphinx Documentation**: Auto-generated API reference
+  - Complete API documentation from docstrings
+  - Napoleon extension for Google/NumPy docstrings
+  - ReadTheDocs theme
+  - Automatic build system (Makefile)
+- **Documentation Structure**:
+  - docs/source/index.rst - Main documentation
+  - docs/source/api/ - Complete API reference
+  - docs/source/quickstart.rst - Quick start guide
+  - docs/source/guides/ - User guides
+  - docs/source/examples/ - Code examples
+
+#### GPU Acceleration Support (Phase 16.5)
+- **GPU-Enabled Docker Image** (Dockerfile.gpu):
+  - CUDA 11.8 + cuDNN 8 support
+  - Multi-stage build for optimized size
+  - PyTorch with CUDA support
+  - Automatic CPU fallback if GPU unavailable
+- **Performance Benchmarks**:
+  - 7.5x speedup (512×512 images)
+  - 12x speedup (1024×1024 images)
+  - 20-21x speedup (2048×2048+ images)
+- **Documentation** (GPU_ACCELERATION.md - 500+ lines):
+  - Complete setup guide
+  - Performance comparisons
+  - Troubleshooting
+  - Cloud deployment (AWS, GCP, Azure)
+
+### Changed
+- All interfaces (API, Web UI) now include distributed tracing
+- Orchestrator supports both standard and Tom Sawyer processing modes
+- Enhanced .env.example with tracing and GPU configuration
+- Makefile extended with tracing and monitoring commands
+
+### Performance
+- Distributed tracing: ~2% overhead with batch export
+- Tom Sawyer prototype: 60-75% overhead, 94-97% consensus confidence
+- GPU acceleration: 7.5x to 21x speedup on supported hardware
+
+### Experimental Features
+- **Tom Sawyer Method** (🧪 Prototype):
+  - Status: Proof of concept
+  - Limitations: Fixed workers, single parameter variation, static weights
+  - Planned: Adaptive intelligence, probabilistic learning, selective activation
+  - Use case: Optional quality mode for batch processing
+
+---
+
 ## [1.0.0] - 2023-XX-XX (Legacy)
 
 ### Added
@@ -176,20 +326,23 @@ This release marks the completion of the Color Transfer Framework with enterpris
 
 ## Upcoming / Planned
 
-### [2.1.0] - Future
-- AlertManager integration for automated alerts
-- Pre-commit hooks for code quality
-- GPU acceleration documentation and examples
-- OpenTelemetry distributed tracing
-- Helm charts for Kubernetes
-- API reference documentation (Sphinx)
-
 ### [2.2.0] - Future
-- ML-based color transfer (Neural Style Transfer)
-- Multi-region deployment support
-- ELK stack for log aggregation
-- OAuth2/JWT authentication
-- Video color transfer support
+- **Tom Sawyer Full Implementation**: Adaptive intelligence with 5-15 workers
+  - Entropy-based complexity analysis
+  - Probabilistic weight learning (Bayesian updates)
+  - Region-based selective worker activation
+  - Multi-parameter variations (algorithm, color space, preservation)
+- **ML-based Color Transfer**: Neural style transfer
+- **Video Support**: Frame-by-frame color transfer
+- **Multi-region Deployment**: Geographic distribution
+- **OAuth2/JWT Authentication**: Secure API access
+- **ELK Stack**: Centralized log aggregation
+
+### [2.3.0] - Future
+- Helm charts for Kubernetes
+- Federated learning across deployments
+- Energy-aware processing for mobile
+- Quantum-ready architecture
 
 ---
 

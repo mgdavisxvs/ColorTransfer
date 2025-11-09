@@ -98,6 +98,61 @@ class ErrorResponse(BaseModel):
     status_code: int
 
 
+# Tom Sawyer Method Models (Phase 17)
+
+class ProcessingMode(str, Enum):
+    """Processing mode for transfer operations."""
+    STANDARD = "standard"
+    TOM_SAWYER = "tom_sawyer"
+
+
+class TomSawyerConfigModel(BaseModel):
+    """Tom Sawyer processing configuration."""
+    num_workers: int = Field(default=10, ge=5, le=15, description="Number of workers (5-15)")
+    variation_min: float = Field(default=0.85, ge=0.5, le=1.0, description="Minimum variation factor")
+    variation_max: float = Field(default=1.15, ge=1.0, le=2.0, description="Maximum variation factor")
+    enable_parallel: bool = Field(default=True, description="Enable parallel execution")
+    enable_outlier_rejection: bool = Field(default=True, description="Enable outlier detection")
+
+
+class TomSawyerMetricsModel(BaseModel):
+    """Tom Sawyer processing metrics."""
+    num_workers: int
+    processing_time_ms: float
+    per_worker_time_ms: float
+    aggregation_time_ms: float
+    num_outliers: int
+    consensus_confidence: float
+    memory_used_mb: float
+    speedup_vs_sequential: Optional[float] = None
+
+
+class TomSawyerTransferRequest(BaseModel):
+    """Request for Tom Sawyer color transfer operation."""
+    source_image: str = Field(..., description="Base64 encoded source image")
+    target_image: str = Field(..., description="Base64 encoded target image")
+    mask_image: Optional[str] = Field(None, description="Base64 encoded mask image (optional)")
+    config: TransferConfigModel = Field(default_factory=TransferConfigModel)
+    tom_sawyer_config: TomSawyerConfigModel = Field(default_factory=TomSawyerConfigModel)
+    client_id: Optional[str] = Field(None, description="Client ID for WebSocket progress updates (optional)")
+
+    @field_validator('source_image', 'target_image', 'mask_image')
+    @classmethod
+    def validate_base64(cls, v):
+        """Validate base64 strings are not empty."""
+        if v is not None and len(v) == 0:
+            raise ValueError("Base64 image string cannot be empty")
+        return v
+
+
+class TomSawyerTransferResponse(BaseModel):
+    """Response from Tom Sawyer color transfer operation."""
+    result_image: str = Field(..., description="Base64 encoded result image")
+    metrics: PerformanceMetricsModel
+    tom_sawyer_metrics: TomSawyerMetricsModel
+    run_id: Optional[str] = None
+
+
 class BenchmarkRequest(BaseModel):
     """Request for benchmarking operation."""
     image_sizes: List[str] = Field(default=["512x512", "1080p", "4k"])
