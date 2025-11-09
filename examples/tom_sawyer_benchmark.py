@@ -141,7 +141,7 @@ def run_benchmark(
         print(f"    Run {i + 1}/{num_runs}... ", end="", flush=True)
         result = orchestrator.transfer_tom_sawyer(
             source, target, config,
-            num_workers=10,
+            num_workers=4,  # Optimized: 1:1 ratio with max_parallel_workers=4
             variation_range=(0.85, 1.15),
             enable_parallel=True
         )
