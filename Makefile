@@ -6,7 +6,8 @@
 .PHONY: help install install-dev install-test clean lint format test test-quick test-full \
         test-integration test-coverage docker-build docker-up docker-down docker-logs \
         docker-clean security-scan build package deploy-local deploy-prod docs \
-        benchmark check-health
+        benchmark check-health tracing-up tracing-down tracing-logs tracing-status \
+        jaeger-open tracing-test
 
 .DEFAULT_GOAL := help
 
@@ -229,6 +230,39 @@ grafana-open: ## Open Grafana in browser
 prometheus-open: ## Open Prometheus in browser
 	@echo "Opening Prometheus..."
 	@open http://localhost:9090 || xdg-open http://localhost:9090 || echo "Please open http://localhost:9090"
+
+# ============================================================================
+# Distributed Tracing (Phase 16)
+# ============================================================================
+
+tracing-up: ## Start Jaeger tracing service
+	$(DOCKER_COMPOSE) up -d jaeger
+	@echo "✅ Jaeger tracing started"
+	@echo "🔍 Jaeger UI: http://localhost:16686"
+
+tracing-down: ## Stop Jaeger tracing service
+	$(DOCKER_COMPOSE) stop jaeger
+	@echo "✅ Jaeger stopped"
+
+tracing-logs: ## Show Jaeger logs
+	$(DOCKER_COMPOSE) logs -f jaeger
+
+tracing-status: ## Check Jaeger service health
+	@echo "Checking Jaeger service..."
+	@curl -s http://localhost:14269 && echo "✅ Jaeger is healthy" || echo "❌ Jaeger is not responding"
+
+jaeger-open: ## Open Jaeger UI in browser
+	@echo "Opening Jaeger UI..."
+	@echo "Select service: color-transfer-api"
+	@open http://localhost:16686 || xdg-open http://localhost:16686 || echo "Please open http://localhost:16686"
+
+tracing-test: ## Generate test traces
+	@echo "Generating test traces..."
+	@curl -X POST http://localhost:$(API_PORT)/api/v1/transfer \
+		-F "source_image=@examples/source.jpg" \
+		-F "target_image=@examples/target.jpg" \
+		-F "algorithm=reinhard_lab" > /dev/null 2>&1 || echo "⚠️  Make sure API is running and example images exist"
+	@echo "✅ Test trace generated. View in Jaeger UI: http://localhost:16686"
 
 # ============================================================================
 # Security

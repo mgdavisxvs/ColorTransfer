@@ -47,6 +47,9 @@ from ..security.health_checker import (
     create_memory_check
 )
 
+# Import telemetry (Phase 16: Distributed Tracing)
+from ..telemetry import setup_tracing
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -59,6 +62,10 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
+# Setup distributed tracing (Phase 16)
+tracer = setup_tracing("color-transfer-api", app, "fastapi")
+logger.info("Distributed tracing configured with OpenTelemetry")
 
 # Add CORS middleware
 app.add_middleware(

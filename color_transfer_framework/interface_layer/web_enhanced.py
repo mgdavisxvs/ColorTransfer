@@ -53,6 +53,9 @@ from ..security.health_checker import (
     create_memory_check
 )
 
+# Import telemetry (Phase 16: Distributed Tracing)
+from ..telemetry import setup_tracing
+
 logger = logging.getLogger(__name__)
 
 # Initialize Flask app
@@ -62,6 +65,10 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB max upload
 app.config['UPLOAD_FOLDER'] = tempfile.mkdtemp()
 app.config['CONFIG_FOLDER'] = Path.home() / '.color_transfer' / 'configs'
 app.config['CONFIG_FOLDER'].mkdir(parents=True, exist_ok=True)
+
+# Setup distributed tracing (Phase 16)
+tracer = setup_tracing("color-transfer-web-enhanced", app, "flask")
+logger.info("Distributed tracing configured with OpenTelemetry")
 
 # Initialize orchestrator
 orchestrator = TransferOrchestrator()
