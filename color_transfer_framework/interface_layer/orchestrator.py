@@ -295,27 +295,31 @@ class TransferOrchestrator:
         num_workers: Optional[int] = None,  # Changed from int = 10 to Optional[int] = None
         variation_range: tuple = (0.7, 1.3),  # Phase 18.2: Wider range for better diversity
         enable_parallel: bool = True,
+        enable_multi_param: bool = True,  # Phase 18.3: Multi-parameter variation
         interface_type: str = "DIRECT",
         progress_callback: Optional[Callable[[str, int], None]] = None
     ) -> OrchestrationResult:
         """
         Perform color transfer using Tom Sawyer parallel processing method.
 
-        This is an OPTIMIZED implementation of the Tom Sawyer Method (Phase 18.2),
-        which uses multiple workers with parameter variations to achieve consensus
-        results with adaptive worker selection and wider parameter diversity.
+        This is an OPTIMIZED implementation of the Tom Sawyer Method (Phase 18.3),
+        which uses multiple workers with multi-parameter variations to achieve
+        consensus results with adaptive worker selection and enhanced diversity.
 
         Algorithm:
         1. Auto-select optimal workers based on image size (or use specified)
-        2. Generate parameter variations (blend factors 0.7 to 1.3 by default)
+        2. Generate multi-parameter variations:
+           - blend_factor: 0.7 to 1.3 (linear)
+           - epsilon: 1e-11 to 1e-9 (log-scale)
+           - preserve_luminance: alternating (odd workers)
         3. Execute workers in parallel (4 parallel threads)
         4. Aggregate results through weighted consensus
         5. Return best result with quality metrics
 
-        Performance (Phase 18.2):
+        Performance (Phase 18.3):
         - Small images (512x512): ~35% overhead (production-ready)
         - Medium images (1024x1024): ~120% overhead (acceptable)
-        - Quality: 31+ dB PSNR (wider range for better consensus)
+        - Quality: Enhanced through multi-parameter diversity
 
         Parameters:
         ----------
@@ -333,9 +337,11 @@ class TransferOrchestrator:
             Number of workers (default: None = auto-select based on image size)
             Auto-selection: 4 for <300k pixels, 6 for <1M pixels, 8 for >=1M pixels
         variation_range : tuple
-            (min, max) variation factors (default: 0.7 to 1.3 for better diversity)
+            (min, max) variation factors for blend_factor (default: 0.7 to 1.3)
         enable_parallel : bool
             Use parallel execution (default: True)
+        enable_multi_param : bool
+            Enable multi-parameter variation (default: True, Phase 18.3)
 
         Returns:
         -------
@@ -391,7 +397,8 @@ class TransferOrchestrator:
             variation_range=variation_range,
             enable_outlier_rejection=True,
             outlier_threshold=3.0,
-            max_parallel_workers=4
+            max_parallel_workers=4,
+            enable_multi_param=enable_multi_param
         )
 
         emit_progress("processing_workers", 30)

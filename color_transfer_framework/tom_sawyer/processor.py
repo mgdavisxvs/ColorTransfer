@@ -35,23 +35,27 @@ class TomSawyerProcessor:
     def __init__(
         self,
         num_workers: int = 10,
-        variation_range: tuple = (0.85, 1.15),
+        variation_range: tuple = (0.7, 1.3),
         enable_outlier_rejection: bool = True,
         outlier_threshold: float = 3.0,
         max_parallel_workers: int = 4,
+        enable_multi_param: bool = True,
     ):
         """
         Initialize Tom Sawyer processor.
 
         Args:
             num_workers: Number of workers (default: 10)
-            variation_range: (min, max) variation factors (default: 0.85 to 1.15)
+            variation_range: (min, max) variation factors (default: 0.7 to 1.3)
             enable_outlier_rejection: Enable outlier detection (default: True)
             outlier_threshold: Z-score threshold for outliers (default: 3.0)
             max_parallel_workers: Max parallel threads (default: 4)
+            enable_multi_param: Enable multi-parameter variation (Phase 18.3, default: True)
         """
         self.worker_manager = WorkerManager(num_workers=num_workers)
-        self.variation_controller = VariationController(variation_range=variation_range)
+        self.variation_controller = VariationController(
+            variation_range=variation_range, enable_multi_param=enable_multi_param
+        )
         self.aggregator = ConsensusAggregator(
             outlier_threshold=outlier_threshold,
             enable_outlier_rejection=enable_outlier_rejection,
@@ -62,6 +66,7 @@ class TomSawyerProcessor:
             f"TomSawyerProcessor initialized: "
             f"workers={num_workers}, "
             f"variation={variation_range}, "
+            f"multi_param={enable_multi_param}, "
             f"outlier_rejection={enable_outlier_rejection}"
         )
 

@@ -107,7 +107,7 @@ class ProcessingMode(str, Enum):
 
 
 class TomSawyerConfigModel(BaseModel):
-    """Tom Sawyer processing configuration (Phase 18.2: Wider Variation Range)."""
+    """Tom Sawyer processing configuration (Phase 18.3: Multi-Parameter Variation)."""
     num_workers: Optional[int] = Field(
         default=None,
         ge=4,
@@ -117,6 +117,7 @@ class TomSawyerConfigModel(BaseModel):
     variation_min: float = Field(default=0.7, ge=0.5, le=1.0, description="Minimum variation factor")
     variation_max: float = Field(default=1.3, ge=1.0, le=2.0, description="Maximum variation factor")
     enable_parallel: bool = Field(default=True, description="Enable parallel execution")
+    enable_multi_param: bool = Field(default=True, description="Enable multi-parameter variation (Phase 18.3)")
     enable_outlier_rejection: bool = Field(default=True, description="Enable outlier detection")
 
 
