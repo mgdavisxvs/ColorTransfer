@@ -170,9 +170,17 @@ class TransferOrchestrator:
 
             emit_progress("applying_transform", 50)
             result = self.transfer_engine.transfer(
-                source_image, target_image, config, mask
+                source_image, target_image, config
             )
             execution_time = (time.perf_counter() - start_time) * 1000  # ms
+
+            # Apply mask if provided
+            if mask is not None:
+                result = cv2.bitwise_and(result, result, mask=mask)
+                # Blend masked area with original
+                inverse_mask = cv2.bitwise_not(mask)
+                original_masked = cv2.bitwise_and(target_image, target_image, mask=inverse_mask)
+                result = cv2.add(result, original_masked)
 
             # Create metrics
             metrics = PerformanceMetrics(
@@ -183,8 +191,16 @@ class TransferOrchestrator:
         else:
             emit_progress("applying_transform", 50)
             result = self.transfer_engine.transfer(
-                source_image, target_image, config, mask
+                source_image, target_image, config
             )
+
+            # Apply mask if provided
+            if mask is not None:
+                result = cv2.bitwise_and(result, result, mask=mask)
+                # Blend masked area with original
+                inverse_mask = cv2.bitwise_not(mask)
+                original_masked = cv2.bitwise_and(target_image, target_image, mask=inverse_mask)
+                result = cv2.add(result, original_masked)
             metrics = PerformanceMetrics(
                 execution_time_ms=0.0,
                 memory_used_mb=0.0,
@@ -338,7 +354,7 @@ class TransferOrchestrator:
 
         # Define transfer function for workers
         def transfer_func(src, tgt, cfg):
-            return self.transfer_engine.transfer(src, tgt, cfg, mask)
+            return self.transfer_engine.transfer(src, tgt, cfg)
 
         # Execute Tom Sawyer processing
         start_time = time.perf_counter()
@@ -350,6 +366,14 @@ class TransferOrchestrator:
             enable_parallel=enable_parallel
         )
         execution_time = (time.perf_counter() - start_time) * 1000  # ms
+
+        # Apply mask to consensus result if provided
+        if mask is not None:
+            consensus_result = cv2.bitwise_and(consensus_result, consensus_result, mask=mask)
+            # Blend masked area with original
+            inverse_mask = cv2.bitwise_not(mask)
+            original_masked = cv2.bitwise_and(target_image, target_image, mask=inverse_mask)
+            consensus_result = cv2.add(consensus_result, original_masked)
 
         emit_progress("finalizing_result", 90)
 

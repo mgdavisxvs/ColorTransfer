@@ -109,17 +109,19 @@ class VariationController:
         Returns:
             Varied configuration
         """
-        # Create copy of base config
+        # Calculate varied blend factor and clamp to valid range [0.0, 1.0]
+        # (TransferConfig validates this range in __post_init__)
+        varied_blend = base_config.blend_factor * variation_factor
+        varied_blend = max(0.0, min(1.0, varied_blend))
+
+        # Create copy of base config with clamped blend_factor
         varied_config = TransferConfig(
             algorithm=base_config.algorithm,
-            blend_factor=base_config.blend_factor * variation_factor,
+            blend_factor=varied_blend,
             clip_output=base_config.clip_output,
             preserve_luminance=base_config.preserve_luminance,
             epsilon=base_config.epsilon,
         )
-
-        # Clamp blend_factor to valid range [0.0, 2.0]
-        varied_config.blend_factor = max(0.0, min(2.0, varied_config.blend_factor))
 
         return varied_config
 
