@@ -483,7 +483,9 @@ class TransferEngine:
     def transfer(self,
                 source: np.ndarray,
                 target: np.ndarray,
-                config: Optional[TransferConfig] = None) -> np.ndarray:
+                config: Optional[TransferConfig] = None,
+                source_stats: Optional['ColorStatistics'] = None,
+                target_stats: Optional['ColorStatistics'] = None) -> np.ndarray:
         """
         Perform color transfer.
 
@@ -495,11 +497,22 @@ class TransferEngine:
             Target image (BGR uint8)
         config : Optional[TransferConfig]
             Transfer configuration (uses default if None)
+        source_stats : Optional[ColorStatistics]
+            Pre-computed source statistics (Phase 19.3 optimization)
+            If None, will be computed automatically
+        target_stats : Optional[ColorStatistics]
+            Pre-computed target statistics (Phase 19.3 optimization)
+            If None, will be computed automatically
 
         Returns:
         -------
         np.ndarray
             Transferred image (BGR uint8)
+
+        Phase 19.3 Optimization:
+            Added source_stats/target_stats parameters to enable shared
+            statistics computation across Tom Sawyer workers.
+            Expected impact: 40% speedup for Tom Sawyer method.
         """
         cfg = config or self.default_config
 
@@ -510,8 +523,8 @@ class TransferEngine:
 
         algorithm = algorithm_class(cfg)
 
-        # Perform transfer
-        result = algorithm.transfer(source, target)
+        # Perform transfer (with optional pre-computed stats)
+        result = algorithm.transfer(source, target, source_stats, target_stats)
 
         # Apply blending if needed
         if cfg.blend_factor < 1.0:

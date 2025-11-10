@@ -1,0 +1,284 @@
+{
+  "reports": [
+    {
+      "timestamp": "2025-11-10 17:45:23",
+      "image_size": [
+        512,
+        512
+      ],
+      "profiles": [
+        {
+          "operation": "standard_transfer",
+          "total_time_ms": 236.58212999998796,
+          "calls": 285,
+          "time_per_call_ms": 0.830112736842063,
+          "memory_mb": 0.7917900085449219,
+          "peak_memory_mb": 36.03431987762451
+        },
+        {
+          "operation": "tom_sawyer_4w",
+          "total_time_ms": 224.61086099997374,
+          "calls": 1404,
+          "time_per_call_ms": 0.159979245726477,
+          "memory_mb": 0.0,
+          "peak_memory_mb": 0.0
+        },
+        {
+          "operation": "tom_sawyer_6w",
+          "total_time_ms": 285.1317570000447,
+          "calls": 1730,
+          "time_per_call_ms": 0.16481604450869633,
+          "memory_mb": 0.0,
+          "peak_memory_mb": 0.0
+        },
+        {
+          "operation": "tom_sawyer_8w",
+          "total_time_ms": 286.3156700000218,
+          "calls": 1994,
+          "time_per_call_ms": 0.14358860080241814,
+          "memory_mb": 0.0,
+          "peak_memory_mb": 0.0
+        }
+      ],
+      "hotspots": [
+        {
+          "function": "transfer",
+          "file": "orchestrator.py",
+          "line": 104,
+          "calls": 1,
+          "total_time_ms": 0.160367,
+          "cumulative_time_ms": 236.553793,
+          "time_per_call_ms": 0.160367
+        },
+        {
+          "function": "transfer",
+          "file": "transfer_engine.py",
+          "line": 483,
+          "calls": 1,
+          "total_time_ms": 0.8557910000000001,
+          "cumulative_time_ms": 222.327197,
+          "time_per_call_ms": 0.8557910000000001
+        },
+        {
+          "function": "transfer",
+          "file": "transfer_engine.py",
+          "line": 215,
+          "calls": 1,
+          "total_time_ms": 7.6792300000000004,
+          "cumulative_time_ms": 221.381296,
+          "time_per_call_ms": 7.6792300000000004
+        },
+        {
+          "function": "convert_to",
+          "file": "color_space_manager.py",
+          "line": 128,
+          "calls": 3,
+          "total_time_ms": 0.150763,
+          "cumulative_time_ms": 150.06718000000004,
+          "time_per_call_ms": 0.05025433333333334
+        },
+        {
+          "function": "_prepare_images",
+          "file": "transfer_engine.py",
+          "line": 133,
+          "calls": 1,
+          "total_time_ms": 0.049316,
+          "cumulative_time_ms": 149.686033,
+          "time_per_call_ms": 0.049316
+        },
+        {
+          "function": "compute_stats",
+          "file": "color_statistics_engine.py",
+          "line": 149,
+          "calls": 2,
+          "total_time_ms": 0.634565,
+          "cumulative_time_ms": 44.550214000000004,
+          "time_per_call_ms": 0.3172825
+        },
+        {
+          "function": "clip",
+          "file": "fromnumeric.py",
+          "line": 2241,
+          "calls": 5,
+          "total_time_ms": 0.063178,
+          "cumulative_time_ms": 29.133889000000003,
+          "time_per_call_ms": 0.0126356
+        },
+        {
+          "function": "_wrapfunc",
+          "file": "fromnumeric.py",
+          "line": 51,
+          "calls": 5,
+          "total_time_ms": 0.052141,
+          "cumulative_time_ms": 29.070711000000003,
+          "time_per_call_ms": 0.0104282
+        },
+        {
+          "function": "_clip",
+          "file": "_methods.py",
+          "line": 99,
+          "calls": 5,
+          "total_time_ms": 28.953207000000003,
+          "cumulative_time_ms": 28.953207000000003,
+          "time_per_call_ms": 5.7906414
+        },
+        {
+          "function": "clamp",
+          "file": "color_space_manager.py",
+          "line": 43,
+          "calls": 3,
+          "total_time_ms": 0.057163,
+          "cumulative_time_ms": 24.151781,
+          "time_per_call_ms": 0.019054333333333336
+        }
+      ],
+      "total_time_ms": 1032.6404180000281,
+      "total_memory_mb": 36.03431987762451,
+      "recommendations": [
+        "CRITICAL: tom_sawyer_8w takes 286.3ms - optimize this first for maximum impact",
+        "MEDIUM: Hotspot in transfer (236.6ms cumulative) - profile this function specifically"
+      ]
+    },
+    {
+      "timestamp": "2025-11-10 17:45:27",
+      "image_size": [
+        1024,
+        1024
+      ],
+      "profiles": [
+        {
+          "operation": "standard_transfer",
+          "total_time_ms": 364.9778909998531,
+          "calls": 285,
+          "time_per_call_ms": 1.280624178946853,
+          "memory_mb": 3.0220041275024414,
+          "peak_memory_mb": 144.01856327056885
+        },
+        {
+          "operation": "tom_sawyer_4w",
+          "total_time_ms": 946.2527919999957,
+          "calls": 1331,
+          "time_per_call_ms": 0.7109337280240389,
+          "memory_mb": 0.0,
+          "peak_memory_mb": 0.0
+        },
+        {
+          "operation": "tom_sawyer_6w",
+          "total_time_ms": 1497.1924539997872,
+          "calls": 1731,
+          "time_per_call_ms": 0.8649292050836437,
+          "memory_mb": 0.0,
+          "peak_memory_mb": 0.0
+        },
+        {
+          "operation": "tom_sawyer_8w",
+          "total_time_ms": 1556.6073160000542,
+          "calls": 1973,
+          "time_per_call_ms": 0.788954544348735,
+          "memory_mb": 0.0,
+          "peak_memory_mb": 0.0
+        }
+      ],
+      "hotspots": [
+        {
+          "function": "transfer",
+          "file": "orchestrator.py",
+          "line": 104,
+          "calls": 1,
+          "total_time_ms": 0.17028400000000002,
+          "cumulative_time_ms": 364.95835500000004,
+          "time_per_call_ms": 0.17028400000000002
+        },
+        {
+          "function": "transfer",
+          "file": "transfer_engine.py",
+          "line": 483,
+          "calls": 1,
+          "total_time_ms": 2.8569930000000006,
+          "cumulative_time_ms": 344.5661410000001,
+          "time_per_call_ms": 2.8569930000000006
+        },
+        {
+          "function": "transfer",
+          "file": "transfer_engine.py",
+          "line": 215,
+          "calls": 1,
+          "total_time_ms": 24.611110000000004,
+          "cumulative_time_ms": 341.659713,
+          "time_per_call_ms": 24.611110000000004
+        },
+        {
+          "function": "compute_stats",
+          "file": "color_statistics_engine.py",
+          "line": 149,
+          "calls": 2,
+          "total_time_ms": 0.19874200000000003,
+          "cumulative_time_ms": 151.75708100000003,
+          "time_per_call_ms": 0.09937100000000001
+        },
+        {
+          "function": "convert_to",
+          "file": "color_space_manager.py",
+          "line": 128,
+          "calls": 3,
+          "total_time_ms": 0.166567,
+          "cumulative_time_ms": 125.87289100000001,
+          "time_per_call_ms": 0.05552233333333333
+        },
+        {
+          "function": "clip",
+          "file": "fromnumeric.py",
+          "line": 2241,
+          "calls": 5,
+          "total_time_ms": 0.06905900000000001,
+          "cumulative_time_ms": 112.704626,
+          "time_per_call_ms": 0.0138118
+        },
+        {
+          "function": "_wrapfunc",
+          "file": "fromnumeric.py",
+          "line": 51,
+          "calls": 5,
+          "total_time_ms": 0.041551000000000005,
+          "cumulative_time_ms": 112.63556700000001,
+          "time_per_call_ms": 0.0083102
+        },
+        {
+          "function": "_clip",
+          "file": "_methods.py",
+          "line": 99,
+          "calls": 5,
+          "total_time_ms": 112.535568,
+          "cumulative_time_ms": 112.535568,
+          "time_per_call_ms": 22.5071136
+        },
+        {
+          "function": "clamp",
+          "file": "color_space_manager.py",
+          "line": 43,
+          "calls": 3,
+          "total_time_ms": 0.057846,
+          "cumulative_time_ms": 103.698479,
+          "time_per_call_ms": 0.019282
+        },
+        {
+          "function": "_prepare_images",
+          "file": "transfer_engine.py",
+          "line": 133,
+          "calls": 1,
+          "total_time_ms": 0.048467,
+          "cumulative_time_ms": 86.210963,
+          "time_per_call_ms": 0.048467
+        }
+      ],
+      "total_time_ms": 4365.03045299969,
+      "total_memory_mb": 144.01856327056885,
+      "recommendations": [
+        "CRITICAL: tom_sawyer_8w takes 1556.6ms - optimize this first for maximum impact",
+        "HIGH: 1 operations use >50MB memory - consider dtype optimization (float64\u2192float32)",
+        "MEDIUM: Hotspot in transfer (365.0ms cumulative) - profile this function specifically",
+        "HIGH: Tom Sawyer overhead is 159.3% - reduce worker synchronization cost"
+      ]
+    }
+  ]
+}

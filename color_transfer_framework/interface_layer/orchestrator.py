@@ -403,6 +403,13 @@ class TransferOrchestrator:
 
         emit_progress("processing_workers", 30)
 
+        # Phase 19.3 Optimization: Shared statistics via caching
+        # The stats_engine has caching enabled, so the first worker to compute
+        # stats will cache them, and subsequent workers will reuse the cached values.
+        # Since all workers receive the same source/target images, the cache key
+        # (hash of image bytes) will be identical, enabling automatic sharing.
+        logger.info("Tom Sawyer workers will share statistics via cache (Phase 19.3 optimization)")
+
         # Define transfer function for workers
         def transfer_func(src, tgt, cfg):
             return self.transfer_engine.transfer(src, tgt, cfg)
